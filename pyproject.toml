@@ -1,0 +1,25 @@
+[project]
+name = "pydantic-simple-env"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Thomas Adamcik", email = "thomas@adamcik.no" }]
+requires-python = ">=3.13"
+dependencies = [
+  "pydantic>=2.11.7",
+  "pydantic-settings>=2.10.1",
+  "sentinel-value>=1.0.0",
+  "sentinels>=1.1.1",
+  "type-extensions>=0.1.2",
+  "typing-extensions>=4.15.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=8.4.2"]
+
+[tool.basedpyright]
+enableExperimentalFeatures = true
