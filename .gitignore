@@ -1,4 +1,39 @@
-__pycache__
-.direnv
-.envrc
+/.direnv/
+/.envrc
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# Editors/OS
+.DS_Store
+
+# Nix local outputs
 result
+result-*
+
+# Jujutsu metadata (if present)
+.jj/

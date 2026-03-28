@@ -60,7 +60,9 @@ def test_mixed_list_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_permission_list_enum_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: list[Permission] = Field(default_factory=list, metadata=SimpleEnvParser())
+        values: list[Permission] = Field(
+            default_factory=list, metadata=SimpleEnvParser()
+        )
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "read,write,delete")
@@ -218,7 +220,11 @@ def test_conflicting_bool_enum_precedence(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "true,false,maybe")
-    assert Settings().values == [ConflictingBool.TRUE, ConflictingBool.FALSE, ConflictingBool.MAYBE]
+    assert Settings().values == [
+        ConflictingBool.TRUE,
+        ConflictingBool.FALSE,
+        ConflictingBool.MAYBE,
+    ]
 
 
 def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
@@ -229,7 +235,11 @@ def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "true,false,pending")
-    assert Settings().values == [StatusLiteral.ENABLED, StatusLiteral.DISABLED, StatusLiteral.PENDING]
+    assert Settings().values == [
+        StatusLiteral.ENABLED,
+        StatusLiteral.DISABLED,
+        StatusLiteral.PENDING,
+    ]
 
 
 def test_unsupported_top_level_type_fails(monkeypatch: pytest.MonkeyPatch):
@@ -264,7 +274,9 @@ def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: list[Permission] = Field(default_factory=list, metadata=SimpleEnvParser())
+        values: list[Permission] = Field(
+            default_factory=list, metadata=SimpleEnvParser()
+        )
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "read,invalid")
@@ -365,7 +377,9 @@ def test_unsupported_complex_type_as_list_item_fails(monkeypatch: pytest.MonkeyP
         y: int
 
     class Settings(BaseSimpleEnvSettings):
-        values: list[Coordinates] = Field(default_factory=list, metadata=SimpleEnvParser())
+        values: list[Coordinates] = Field(
+            default_factory=list, metadata=SimpleEnvParser()
+        )
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "1,2")

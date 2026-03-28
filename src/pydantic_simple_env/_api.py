@@ -98,7 +98,9 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             parsing_config = self._get_parsing_config(field)
 
             if parsing_config is None:
-                data[field_name] = self._parse_default_env_value(field, env_val_from_source)
+                data[field_name] = self._parse_default_env_value(
+                    field, env_val_from_source
+                )
                 continue  # Skip processing by this source
 
             # --- If we reach here, value IS from env AND has our custom config ---
@@ -129,7 +131,10 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                     parsing_config,
                 )
             elif origin is tuple:
-                if get_args(field.annotation) and get_args(field.annotation)[-1] is Ellipsis:
+                if (
+                    get_args(field.annotation)
+                    and get_args(field.annotation)[-1] is Ellipsis
+                ):
                     parsed_value = self._parse_variable_tuple_value(
                         field_name,
                         get_args(field.annotation),
