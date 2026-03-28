@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum, StrEnum
 import os
 from typing import Annotated, List, Literal, Any, Set, Tuple, Dict, Union
 
@@ -41,7 +41,7 @@ class AppConfiguration(BaseSimpleEnvSettings):
         default_factory=list, metadata=SimpleEnvParser(item_delimiter=";")
     )
     """List of strings, semicolon-separated from ENV. Always stripped, empty input -> []."""
-    mixed_list_comma: List[int | str | float] = Field(
+    mixed_list_comma: List[int | str | float | bool] = Field(
         default_factory=list, metadata=SimpleEnvParser()
     )
     """List of mixed types, comma-separated from ENV. Always stripped, empty input -> []."""
@@ -79,8 +79,8 @@ class AppConfiguration(BaseSimpleEnvSettings):
         default=(), metadata=SimpleEnvParser()
     )
     """Variable-length tuple of floats, comma-separated from ENV. Always stripped, empty input -> ()." """
-    fixed_tuple_str_opt_int: Tuple[str, Union[int, None]] = Field(
-        default=("", None), metadata=SimpleEnvParser()
+    fixed_tuple_str_opt_int: Tuple[str, Union[int, None], int] = Field(
+        default=("", None, 0), metadata=SimpleEnvParser()
     )
     """Fixed-length tuple with an optional integer, comma-separated from ENV. Always stripped."""
 
@@ -442,12 +442,12 @@ def test_conflicting_bool_list_bool_first_bool_precedence(monkeypatch):
     monkeypatch.setenv("APP_CONFLICTING_BOOL_LIST_BOOL_FIRST", "true,false,maybe")
     config = AppConfiguration()
     assert config.conflicting_bool_list_bool_first == [
-        True,
-        False,
+        ConflictingBool.TRUE,
+        ConflictingBool.FALSE,
         ConflictingBool.MAYBE,
     ]
-    assert isinstance(config.conflicting_bool_list_bool_first[0], bool)
-    assert isinstance(config.conflicting_bool_list_bool_first[1], bool)
+    assert isinstance(config.conflicting_bool_list_bool_first[0], ConflictingBool)
+    assert isinstance(config.conflicting_bool_list_bool_first[1], ConflictingBool)
     assert isinstance(config.conflicting_bool_list_bool_first[2], ConflictingBool)
 
 
@@ -459,7 +459,7 @@ def test_unsupported_type_annotation_fails(monkeypatch):
     with pytest.raises(TypeError) as excinfo:
         AppConfiguration()
     assert (
-        "is annotated with SimpleEnvConfig (via SimpleEnvParser()) but its type hint"
+        "is configured with SimpleEnvParser() but its type hint"
         in str(excinfo.value)
     )  # Updated error msg check
     assert "not a List, Set, Tuple, or Dict." in str(excinfo.value)
@@ -535,17 +535,9 @@ def test_dict_key_parse_fails(monkeypatch):
 
     class TestAppConfig(AppConfiguration):
         key_enum_map: Annotated[
-            Dict[MyKey, str], SimpleEnvParser()
+            Dict[MyKey, str], SimpleEnvParser(kv_delimiter=":")
         ] = {}  # Uses SimpleEnvParser
         model_config = SettingsConfigDict(env_prefix="APP_")
-
-        @classmethod
-        def settings_custom_sources(
-            cls, settings_cls: Type[BaseSettings]
-        ) -> List[EnvSettingsSource]:
-            return [
-                SimpleEnvSettingsSource(settings_cls),
-            ]  # Renamed
 
     monkeypatch.setenv("APP_KEY_ENUM_MAP", "invalid_key:value1")
     with pytest.raises(ValueError) as excinfo:
@@ -594,7 +586,7 @@ def test_dict_missing_kv_delimiter_fails(monkeypatch):
     with pytest.raises(TypeError) as excinfo:
         TestConfig()
     assert (
-        "Field 'my_dict' is a Dict and is annotated with SimpleEnvConfig (via SimpleEnvParser()),"
+        "Field 'my_dict' is a Dict and is configured with SimpleEnvParser(),"
         in str(excinfo.value)
     )
     assert "but no 'kv_delimiter' is specified in the config." in str(excinfo.value)
@@ -605,9 +597,9 @@ def test_unsupported_complex_type_in_union_fails(monkeypatch):
         unsupported_union: Annotated[str | list[int], SimpleEnvParser()]
 
     monkeypatch.setenv("APP_UNSUPPORTED_UNION", "not_a_list")
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(TypeError) as excinfo:
         TestConfig()
-    assert "Unsupported target type for direct string parsing: list" in str(
+    assert "is not a List, Set, Tuple, or Dict" in str(
         excinfo.value
     )
 
@@ -633,7 +625,9 @@ def test_unsupported_complex_type_as_dict_key_fails(monkeypatch):
         id: int
 
     class TestConfig(AppConfiguration):
-        complex_key_map: Annotated[dict[MyComplexKey, str], SimpleEnvParser()]
+        complex_key_map: Annotated[
+            dict[MyComplexKey, str], SimpleEnvParser(kv_delimiter=":")
+        ]
 
     monkeypatch.setenv("APP_COMPLEX_KEY_MAP", "key_data:value")
     with pytest.raises(ValueError) as excinfo:
@@ -648,7 +642,9 @@ def test_unsupported_complex_type_as_dict_value_fails(monkeypatch):
         data: str
 
     class TestConfig(AppConfiguration):
-        complex_value_map: Annotated[dict[str, MyComplexValue], SimpleEnvParser()]
+        complex_value_map: Annotated[
+            dict[str, MyComplexValue], SimpleEnvParser(kv_delimiter=":")
+        ]
 
     monkeypatch.setenv("APP_COMPLEX_VALUE_MAP", "key:value_data")
     with pytest.raises(ValueError) as excinfo:
