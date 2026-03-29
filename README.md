@@ -1,32 +1,37 @@
 # pydantic-simple-env
 
-Simple env var parsing for Pydantic Settings without JSON for common collection types.
+Parse common collection settings from simple env strings instead of JSON.
 
-## Status
-
-Prototype / pre-1st-release.
-
-- API exists in `src/pydantic_simple_env/_api.py`
-- Tests exist in `tests/test_settings.py`
-- Behavior is still being stabilized
+If you want `ALLOWED_HOSTS=api.local,worker.local` (not
+`ALLOWED_HOSTS=["api.local","worker.local"]`), this package is for you.
 
 ## Why
 
-Pydantic Settings expects JSON for many structured env values (for example `LIST='[1,2,3]'`).
-This project aims to support simpler strings like:
+`pydantic-settings` is excellent, but for structured values it commonly expects
+JSON in environment variables.
 
-- `INT_LIST=1,2,3`
-- `FLAGS=on,off,on`
-- `PORTS=http:80,https:443`
+That can be verbose and brittle in shell scripts, Docker env files, and ops
+tooling.
 
-## Quick start
+`pydantic-simple-env` adds a lightweight parser for common collection types so
+env vars stay readable:
+
+- `APP_HOSTS=api.local,worker.local`
+- `APP_FEATURE_FLAGS=true,false,true`
+- `APP_PORTS=http:80,https:443`
+
+## Install
 
 ```bash
-uv sync
-uv run pytest -q
+pip install pydantic-simple-env
 ```
 
-## Usage
+Requires Python 3.13+.
+
+## Happy path
+
+Use `BaseSimpleEnvSettings` and annotate only the fields you want to parse with
+simple delimiters.
 
 ```python
 from typing import Annotated
@@ -43,53 +48,93 @@ class Settings(BaseSimpleEnvSettings):
     hosts: SimpleParsed[list[str]] = Field(default_factory=list[str])
     ports: Annotated[
         dict[str, int],
-        SimpleEnvParser(item_delimiter=",", kv_delimiter=":"),
-    ] = Field(
-        default_factory=dict[str, int],
-    )
+        SimpleEnvParser(kv_delimiter=":"),
+    ] = Field(default_factory=dict[str, int])
 
 
 # APP_HOSTS="api.local, worker.local"
 # APP_PORTS="http:80,https:443"
-cfg = Settings()
-assert cfg.hosts == ["api.local", "worker.local"]
-assert cfg.ports == {"http": 80, "https": 443}
+settings = Settings()
+
+assert settings.hosts == ["api.local", "worker.local"]
+assert settings.ports == {"http": 80, "https": 443}
 ```
 
-## Current parsing contract
+## What gets parsed
 
-When a field is annotated with `SimpleEnvParser(...)` metadata:
+`SimpleEnvParser(...)` applies to these field types:
 
-- Supported collection types: `list[T]`, `set[T]`, `tuple[...]`, `dict[K, V]`
-- Item whitespace is stripped before conversion
-- `list` / `set` / variable-length `tuple[T, ...]`: empty input (`""`, `",,,"`) becomes empty collection
-- Fixed-length tuple requires exact item count
-- `dict` requires `kv_delimiter` and parses pairs split by `item_delimiter`
-- Empty dict pairs are ignored (for example `"a:1,,b:2"`)
+- `list[T]`
+- `set[T]`
+- `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
+- `dict[K, V]` (requires `kv_delimiter`)
 
-Element conversion currently supports:
+Supported element conversion:
 
 - `str`, `int`, `float`, `bool` (`true` / `false`)
 - `Enum` / `StrEnum`
-- `Literal[...]` (string literal matching)
-- `Union[...]` of supported types
+- `Literal[...]`
+- `Union[...]` of supported scalar types
 
-Fields without `SimpleEnvParser(...)` use normal Pydantic Settings behavior.
+Fields without `SimpleEnvParser(...)` keep normal `pydantic-settings` behavior
+(including JSON parsing for complex values).
 
-Recommended pattern:
+## API
 
-- Use `SimpleParsed[T]` for default delimiters (`Annotated[T, SimpleEnvParser()]`)
-- Use explicit `Annotated[T, SimpleEnvParser(...)]` for custom delimiters
+- `BaseSimpleEnvSettings`: `BaseSettings` subclass wiring in the custom env
+  source.
+- `SimpleParsed[T]`: shorthand for `Annotated[T, SimpleEnvParser()]`.
+- `SimpleEnvParser(...)`: annotation metadata factory for delimiter-based
+  parsing.
 
-## Known limits
+## Why a base class is required
 
-- Complex nested item types are not supported as direct elements (for example `list[MyModel]`)
-- Applying `SimpleEnvParser(...)` to non-collection fields is an error
-- API/behavior may change while tests are being normalized
+Today, custom parsing is installed via `settings_customise_sources`, so you need
+to inherit from `BaseSimpleEnvSettings`.
 
-## Dev
+In other words: using `SimpleEnvParser(...)` annotations alone is not enough;
+the custom source must be part of the settings source chain.
+
+If `pydantic-settings` gains a cleaner extension point for field-local env
+parsing without source customization, this package may support that path in the
+future.
+
+## Error behavior
+
+At the settings integration layer, parsing errors are raised as
+`pydantic_settings.SettingsError` (matching upstream source behavior).
+
+Detailed parser failure context is kept in `SettingsError.__cause__`.
+
+## Limits
+
+- Complex nested model elements (for example `list[MyModel]`) are not supported
+  by simple string parsing.
+- Applying `SimpleEnvParser(...)` to non-collection fields is a type error.
+
+## Development
+
+Default (no Nix required):
 
 ```bash
 uv sync
+uv run ruff check .
+uv run ruff format .
+uv run pyright .
 uv run pytest -q
 ```
+
+If you use Nix, a dev shell plus formatting/check wiring is already provided:
+
+```bash
+nix develop
+nix fmt
+nix flake check
+```
+
+CI runs the same Nix commands (`nix fmt` and `nix flake check`) using
+Determinate Nix + Magic Nix Cache.
+
+## License
+
+Apache-2.0.
