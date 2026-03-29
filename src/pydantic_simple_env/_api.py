@@ -4,7 +4,7 @@ import os
 import json
 from types import UnionType
 from enum import Enum, StrEnum
-from typing import Any, Literal, Union, get_args, get_origin, Mapping, cast
+from typing import Literal, Union, get_args, get_origin, Mapping, TypeGuard, cast
 
 # Import Field from pydantic for metadata argument
 from pydantic import BaseModel, model_validator
@@ -69,11 +69,23 @@ def SimpleEnvParser(
         - `field: Dict[str, str] = Field(metadata=SimpleEnvParser(kv_delimiter='='))`
     """
     # Return a list containing the SimpleEnvConfig instance.
-    # Field(metadata=...) expects a list[Any] where you can put various metadata objects.
+    # Field(metadata=...) expects a heterogeneous list of metadata objects.
     return [SimpleEnvConfig(item_delimiter=item_delimiter, kv_delimiter=kv_delimiter)]
 
 
 # --- 2. The Custom Environment Settings Source Implementation ---
+
+
+def _is_object_list(value: object) -> TypeGuard[list[object]]:
+    return isinstance(value, list)
+
+
+def _is_mapping_str_object(value: object) -> TypeGuard[Mapping[str, object]]:
+    return isinstance(value, Mapping)
+
+
+def _annotation_args(annotation: object) -> tuple[object, ...]:
+    return cast(tuple[object, ...], get_args(annotation))
 
 
 class SimpleEnvSettingsSource(EnvSettingsSource):
@@ -86,8 +98,8 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
     Most users should inherit from `BaseSimpleEnvSettings` instead of interacting with this directly.
     """
 
-    def __call__(self) -> dict[str, Any]:
-        data: dict[str, Any] = {}
+    def __call__(self) -> dict[str, object]:
+        data: dict[str, object] = {}
 
         for field_name, field in self.settings_cls.model_fields.items():
             env_val_from_source = self._get_env_val(field, field_name)
@@ -106,14 +118,8 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             # --- If we reach here, value IS from env AND has our custom config ---
             value = env_val_from_source  # Raw string from environment
 
-            if not isinstance(value, str):
-                raise TypeError(
-                    f"Field '{field_name}' is configured for SimpleEnvParser() "
-                    f"but received non-string value type {type(value).__name__} from environment. "
-                    f"This source expects string inputs for configured fields."
-                )
-
             origin = get_origin(field.annotation)
+            annotation_args = _annotation_args(field.annotation)
 
             if origin is dict and not parsing_config.kv_delimiter:
                 raise TypeError(
@@ -122,36 +128,41 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                     f"Please use SimpleEnvParser(kv_delimiter=':') or similar for dictionaries."
                 )
 
-            if origin in (list, set):
+            if origin is list:
                 parsed_value = self._parse_list_or_set_value(
                     field_name,
-                    origin,
-                    get_args(field.annotation),
+                    list,
+                    annotation_args,
+                    value,
+                    parsing_config,
+                )
+            elif origin is set:
+                parsed_value = self._parse_list_or_set_value(
+                    field_name,
+                    set,
+                    annotation_args,
                     value,
                     parsing_config,
                 )
             elif origin is tuple:
-                if (
-                    get_args(field.annotation)
-                    and get_args(field.annotation)[-1] is Ellipsis
-                ):
+                if annotation_args and annotation_args[-1] is Ellipsis:
                     parsed_value = self._parse_variable_tuple_value(
                         field_name,
-                        get_args(field.annotation),
+                        annotation_args,
                         value,
                         parsing_config,
                     )
                 else:
                     parsed_value = self._parse_fixed_tuple_value(
                         field_name,
-                        get_args(field.annotation),
+                        annotation_args,
                         value,
                         parsing_config,
                     )
             elif origin is dict:
                 parsed_value = self._parse_dict_value(
                     field_name,
-                    get_args(field.annotation),
+                    annotation_args,
                     value,
                     parsing_config,
                 )
@@ -170,11 +181,11 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             if isinstance(meta_item, SimpleEnvConfig):
                 return meta_item
 
-        metadata_items: list[Any] = []
+        metadata_items: list[object] = []
         schema_extra = field.json_schema_extra
-        if isinstance(schema_extra, Mapping):
-            raw_metadata = cast(Mapping[str, Any], schema_extra).get("metadata", [])
-            if isinstance(raw_metadata, list):
+        if _is_mapping_str_object(schema_extra):
+            raw_metadata = schema_extra.get("metadata", [])
+            if _is_object_list(raw_metadata):
                 metadata_items = raw_metadata
 
         for meta_item in self._iter_metadata_items(metadata_items):
@@ -183,16 +194,16 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
         return None
 
-    def _iter_metadata_items(self, items: list[Any]) -> list[Any]:
-        flattened: list[Any] = []
+    def _iter_metadata_items(self, items: list[object]) -> list[object]:
+        flattened: list[object] = []
         for item in items:
-            if isinstance(item, list):
+            if _is_object_list(item):
                 flattened.extend(self._iter_metadata_items(item))
             else:
                 flattened.append(item)
         return flattened
 
-    def _parse_default_env_value(self, field: FieldInfo, raw_value: str) -> Any:
+    def _parse_default_env_value(self, field: FieldInfo, raw_value: str) -> object:
         origin = get_origin(field.annotation)
         if origin in (list, set, tuple, dict):
             return json.loads(raw_value)
@@ -212,21 +223,25 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
     def _parse_list_or_set_value(
         self,
         field_name: str,
-        collection_type_origin: type[list] | type[set],
-        collection_type_args: tuple[Any, ...],
+        collection_type_origin: type[list[object]] | type[set[object]],
+        collection_type_args: tuple[object, ...],
         raw_value: str,
         config: SimpleEnvConfig,
-    ) -> list[Any] | set[Any]:
+    ) -> list[object] | set[object]:
         """Parses a delimited string into a list or set of parsed items."""
-        item_type = collection_type_args[0] if collection_type_args else str
+        item_type: object = collection_type_args[0] if collection_type_args else str
 
         if not raw_value.strip():
-            return collection_type_origin([])
+            if collection_type_origin is list:
+                return []
+            return set()
 
         parts = raw_value.split(config.item_delimiter)
 
         if all(not part.strip() for part in parts):
-            return collection_type_origin([])
+            if collection_type_origin is list:
+                return []
+            return set()
 
         item_target_types_for_elements = [item_type] * len(parts)
 
@@ -239,17 +254,21 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         )
 
         if not any(item is not None and item != "" for item in parsed_items):
-            return collection_type_origin([])
+            if collection_type_origin is list:
+                return []
+            return set()
 
-        return collection_type_origin(parsed_items)
+        if collection_type_origin is list:
+            return parsed_items
+        return set(parsed_items)
 
     def _parse_fixed_tuple_value(
         self,
         field_name: str,
-        tuple_element_types: tuple[Any, ...],
+        tuple_element_types: tuple[object, ...],
         raw_value: str,
         config: SimpleEnvConfig,
-    ) -> tuple[Any, ...]:
+    ) -> tuple[object, ...]:
         """Parses a delimited string into a fixed-length tuple."""
         parts = raw_value.split(config.item_delimiter)
 
@@ -272,12 +291,12 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
     def _parse_variable_tuple_value(
         self,
         field_name: str,
-        tuple_element_types: tuple[Any, ...],
+        tuple_element_types: tuple[object, ...],
         raw_value: str,
         config: SimpleEnvConfig,
-    ) -> tuple[Any, ...]:
+    ) -> tuple[object, ...]:
         """Parses a delimited string into a variable-length tuple."""
-        item_type = tuple_element_types[0] if tuple_element_types else str
+        item_type: object = tuple_element_types[0] if tuple_element_types else str
 
         if not raw_value.strip():
             return tuple([])
@@ -306,16 +325,16 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         self,
         field_name: str,
         raw_parts: list[str],
-        target_types_for_elements: list[Any],
+        target_types_for_elements: list[object],
         collection_type_name: str,
         strip_item_str: bool,
-    ) -> list[Any]:
+    ) -> list[object]:
         """
         Shared helper to parse a list of raw string parts into a list of typed Python objects.
         Applies `strip_item_str` to the item string before parsing.
         Raises ValueError if an item cannot be parsed to its target type.
         """
-        parsed_elements = []
+        parsed_elements: list[object] = []
         for i, part in enumerate(raw_parts):
             current_item_type = target_types_for_elements[i]
             try:
@@ -333,15 +352,15 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
     def _parse_dict_value(
         self,
         field_name: str,
-        collection_type_args: tuple[Any, ...],
+        collection_type_args: tuple[object, ...],
         raw_value: str,
         config: SimpleEnvConfig,
-    ) -> dict[Any, Any]:
+    ) -> dict[object, object]:
         """Parses a delimited string into a dictionary."""
         key_type = collection_type_args[0] if collection_type_args else str
         value_type = collection_type_args[1] if len(collection_type_args) > 1 else str
 
-        parsed_dict = {}
+        parsed_dict: dict[object, object] = {}
         for kv_pair_str in raw_value.split(config.item_delimiter):
             kv_pair_untrimmed = kv_pair_str
             kv_pair_trimmed = kv_pair_str.strip()
@@ -372,8 +391,8 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         return parsed_dict
 
     def _parse_single_item(
-        self, item_str: str, target_type: Any, strip_val: bool
-    ) -> Any:
+        self, item_str: str, target_type: object, strip_val: bool
+    ) -> object:
         """
         Helper to parse a single string item into the target_type.
         Applies `strip_val` to the item string before parsing.
@@ -452,12 +471,13 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         if target_type is str:
             return processed_item_str
 
+        target_type_name = self._type_name(cast(object, target_type))
         raise ValueError(
-            f"Unsupported target type for direct string parsing: {getattr(target_type, '__name__', str(target_type))}. "
+            f"Unsupported target type for direct string parsing: {target_type_name}. "
             f"Expected a primitive (int, float, bool, str), Enum, Literal, or Union of these."
         )
 
-    def _type_name(self, target_type: Any) -> str:
+    def _type_name(self, target_type: object) -> str:
         return getattr(target_type, "__name__", str(target_type))
 
 

@@ -27,3 +27,6 @@ dev = [
 
 [tool.basedpyright]
 enableExperimentalFeatures = true
+
+[tool.pyright]
+typeCheckingMode = "strict"
