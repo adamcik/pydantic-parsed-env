@@ -120,10 +120,6 @@ source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "sentinel-value" },
-    { name = "sentinels" },
-    { name = "type-extensions" },
-    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -137,10 +133,6 @@ dev = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
-    { name = "sentinel-value", specifier = ">=1.0.0" },
-    { name = "sentinels", specifier = ">=1.1.1" },
-    { name = "type-extensions", specifier = ">=0.1.2" },
-    { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -220,33 +212,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/37/e6/90b2b33419f59d0f2c4c8a48a4b74b460709a557e8e0064cf33ad894f983/ruff-0.15.8-py3-none-win32.whl", hash = "sha256:bc1f0a51254ba21767bfa9a8b5013ca8149dcf38092e6a9eb704d876de94dc34", size = 10571959, upload-time = "2026-03-26T18:39:36.117Z" },
     { url = "https://files.pythonhosted.org/packages/1f/a2/ef467cb77099062317154c63f234b8a7baf7cb690b99af760c5b68b9ee7f/ruff-0.15.8-py3-none-win_amd64.whl", hash = "sha256:04f79eff02a72db209d47d665ba7ebcad609d8918a134f86cb13dd132159fc89", size = 11743893, upload-time = "2026-03-26T18:39:25.01Z" },
     { url = "https://files.pythonhosted.org/packages/15/e2/77be4fff062fa78d9b2a4dea85d14785dac5f1d0c1fb58ed52331f0ebe28/ruff-0.15.8-py3-none-win_arm64.whl", hash = "sha256:cf891fa8e3bb430c0e7fac93851a5978fc99c8fa2c053b57b118972866f8e5f2", size = 11048175, upload-time = "2026-03-26T18:40:01.06Z" },
-]
-
-[[package]]
-name = "sentinel-value"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/93/80/96226b2523d52d88272bd960271a496ae468bb815180bf8a4c38b63b6390/sentinel-value-1.0.0.tar.gz", hash = "sha256:2ff8e9e303c8f6abb2ad8c6d2615ed5f11061eeda2e51edfd560dc0567de633a", size = 7297, upload-time = "2021-11-29T12:40:12.734Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/d0/757561b23d945e9f7431306a8dc2e60425115df55cef1d142ab52132e08f/sentinel_value-1.0.0-py3-none-any.whl", hash = "sha256:fab2501cb3f40c412a105b9a93089780c571468963f7bbcd0b5772ecdcfdc8cc", size = 6963, upload-time = "2021-11-29T12:40:11.332Z" },
-]
-
-[[package]]
-name = "sentinels"
-version = "1.1.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6f/9b/07195878aa25fe6ed209ec74bc55ae3e3d263b60a489c6e73fdca3c8fe05/sentinels-1.1.1.tar.gz", hash = "sha256:3c2f64f754187c19e0a1a029b148b74cf58dd12ec27b4e19c0e5d6e22b5a9a86", size = 4393, upload-time = "2025-08-12T07:57:50.26Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/65/dea992c6a97074f6d8ff9eab34741298cac2ce23e2b6c74fb7d08afdf85c/sentinels-1.1.1-py3-none-any.whl", hash = "sha256:835d3b28f3b47f5284afa4bf2db6e00f2dc5f80f9923d4b7e7aeeeccf6146a11", size = 3744, upload-time = "2025-08-12T07:57:48.858Z" },
-]
-
-[[package]]
-name = "type-extensions"
-version = "0.1.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/80/d0/18bf3a92af3f6a0fc38f874e858d707242ac5c14148ff1c4ee1615397e73/type_extensions-0.1.2.tar.gz", hash = "sha256:7c7b54eba6d7401ad5e69ecec6b7c767d7d7aae9b2b7e56249bc7bcaf833161f", size = 16102, upload-time = "2020-02-26T17:30:57.395Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/dc/707d386bbd830d72fdd58c06f1d8a935d2553498f6868cd7de141addbe06/type_extensions-0.1.2-py2.py3-none-any.whl", hash = "sha256:fc9c8506f87b6227eeb43795061d61571b66a07df6fbcacf31a17d2cb2050153", size = 5566, upload-time = "2020-02-26T17:30:56.378Z" },
 ]
 
 [[package]]
