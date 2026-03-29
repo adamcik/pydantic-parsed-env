@@ -1,7 +1,5 @@
 # src/pydantic_simple_env/_api.py
 
-import json
-import os
 from typing import Annotated, get_origin
 
 from pydantic import BaseModel, model_validator
@@ -11,6 +9,7 @@ from pydantic_settings import (
     EnvSettingsSource,
     PydanticBaseSettingsSource,
 )
+from pydantic_settings.sources.types import EnvNoneType
 
 from ._parsers import (
     annotation_args,
@@ -108,88 +107,92 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
     interacting with this directly.
     """
 
-    def __call__(self) -> dict[str, object]:
-        data: dict[str, object] = {}
+    def prepare_field_value(
+        self,
+        field_name: str,
+        field: FieldInfo,
+        value: object,
+        value_is_complex: bool,  # noqa: FBT001 # inherited method signature
+    ) -> object:
+        parsing_config = self._get_parsing_config(field)
+        if parsing_config is None:
+            return super().prepare_field_value(
+                field_name, field, value, value_is_complex
+            )
 
-        for field_name, field in self.settings_cls.model_fields.items():
-            env_val_from_source = self._get_env_val(field, field_name)
+        if value is None or isinstance(value, EnvNoneType):
+            return value
 
-            if env_val_from_source is None:
-                continue
+        if not isinstance(value, str):
+            return super().prepare_field_value(
+                field_name, field, value, value_is_complex
+            )
 
-            parsing_config = self._get_parsing_config(field)
+        return self._parse_simple_env_value(field_name, field, value, parsing_config)
 
-            if parsing_config is None:
-                data[field_name] = self._parse_default_env_value(
-                    field,
-                    env_val_from_source,
-                )
-                continue  # Skip processing by this source
+    def _parse_simple_env_value(
+        self,
+        field_name: str,
+        field: FieldInfo,
+        value: str,
+        parsing_config: SimpleEnvConfig,
+    ) -> object:
+        resolved_annotation = self._resolve_annotation(field.annotation)
+        origin = get_origin(resolved_annotation)
+        parsed_annotation_args = annotation_args(resolved_annotation)
 
-            # --- If we reach here, value IS from env AND has our custom config ---
-            value = env_val_from_source  # Raw string from environment
+        if origin is dict and not parsing_config.kv_delimiter:
+            raise TypeError(
+                f"Field '{field_name}' is a Dict and is configured with "
+                "SimpleEnvParser(), but no 'kv_delimiter' is specified in "
+                "the config. Please use "
+                "SimpleEnvParser(kv_delimiter=':') or similar for "
+                "dictionaries.",
+            )
 
-            resolved_annotation = self._resolve_annotation(field.annotation)
-            origin = get_origin(resolved_annotation)
-            parsed_annotation_args = annotation_args(resolved_annotation)
-
-            if origin is dict and not parsing_config.kv_delimiter:
-                raise TypeError(
-                    f"Field '{field_name}' is a Dict and is configured with "
-                    "SimpleEnvParser(), but no 'kv_delimiter' is specified in "
-                    "the config. Please use "
-                    "SimpleEnvParser(kv_delimiter=':') or similar for "
-                    "dictionaries.",
-                )
-
-            if origin is list:
-                parsed_value = parse_list_or_set_from_env(
-                    field_name,
-                    list,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            elif origin is set:
-                parsed_value = parse_list_or_set_from_env(
-                    field_name,
-                    set,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            elif origin is tuple:
-                if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
-                    parsed_value = parse_variable_tuple_from_env(
-                        field_name,
-                        parsed_annotation_args,
-                        value,
-                        parsing_config,
-                    )
-                else:
-                    parsed_value = parse_fixed_tuple_from_env(
-                        field_name,
-                        parsed_annotation_args,
-                        value,
-                        parsing_config,
-                    )
-            elif origin is dict:
-                parsed_value = parse_dict_from_env(
+        if origin is list:
+            return parse_list_or_set_from_env(
+                field_name,
+                list,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is set:
+            return parse_list_or_set_from_env(
+                field_name,
+                set,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is tuple:
+            if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
+                return parse_variable_tuple_from_env(
                     field_name,
                     parsed_annotation_args,
                     value,
                     parsing_config,
                 )
-            else:
-                raise TypeError(
-                    f"Field '{field_name}' is configured with SimpleEnvParser() "
-                    f"but its type hint ({resolved_annotation}) is not a List, Set, "
-                    "Tuple, or Dict.",
-                )
+            return parse_fixed_tuple_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is dict:
+            return parse_dict_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
 
-            data[field_name] = parsed_value
-
-        return data
+        raise TypeError(
+            f"Field '{field_name}' is configured with SimpleEnvParser() "
+            f"but its type hint ({resolved_annotation}) is not a List, Set, "
+            "Tuple, or Dict.",
+        )
 
     def _get_parsing_config(self, field: FieldInfo) -> SimpleEnvConfig | None:
         for meta_item in self._iter_metadata_items(field.metadata):
@@ -236,12 +239,12 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                     continue
 
                 if alias_args:
-                    substituted_args: object | tuple[object, ...]
-                    substituted_args = (
-                        alias_args[0] if len(alias_args) == 1 else alias_args
-                    )
                     try:
-                        queue.append(alias_value[substituted_args])
+                        queue.append(
+                            alias_value[
+                                alias_args[0] if len(alias_args) == 1 else alias_args
+                            ],
+                        )
                     except TypeError:
                         queue.append(alias_value)
                 else:
@@ -277,12 +280,10 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                     return current
 
                 if alias_args:
-                    substituted_args: object | tuple[object, ...]
-                    substituted_args = (
-                        alias_args[0] if len(alias_args) == 1 else alias_args
-                    )
                     try:
-                        current = alias_value[substituted_args]
+                        current = alias_value[
+                            alias_args[0] if len(alias_args) == 1 else alias_args
+                        ]
                     except TypeError:
                         current = alias_value
                 else:
@@ -307,23 +308,6 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             else:
                 flattened.append(item)
         return flattened
-
-    def _parse_default_env_value(self, field: FieldInfo, raw_value: str) -> object:
-        origin = get_origin(self._resolve_annotation(field.annotation))
-        if origin in (list, set, tuple, dict):
-            return json.loads(raw_value)
-        return raw_value
-
-    def _get_env_val(self, field: FieldInfo, field_name: str) -> str | None:
-        env_names = [field.alias] if field.alias else [field_name]
-        env_names = [
-            f"{self.config.get('env_prefix', '')}{n.upper()}" for n in env_names
-        ]
-
-        for env_name in env_names:
-            if env_name in os.environ:
-                return os.environ[env_name]
-        return None
 
 
 # --- 3. Base Class for Simple Environment Parsing Settings ---
