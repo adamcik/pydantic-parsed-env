@@ -19,7 +19,7 @@ class Permission(StrEnum):
     WRITE = "write"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SingleItemCase:
     raw: str
     target_type: object
@@ -27,32 +27,58 @@ class SingleItemCase:
     strip: bool = True
 
 
-@dataclass(frozen=True)
-class CollectionCase:
+@dataclass(frozen=True, kw_only=True)
+class CollectionCase[T]:
     field_name: str
     args: tuple[object, ...]
     raw_value: str
-    expected: object
+    expected: list[T] | set[T]
     config: SimpleEnvConfig = field(default_factory=SimpleEnvConfig)
 
 
 @pytest.mark.parametrize(
     "case",
     [
-        SingleItemCase("42", int, 42),
-        SingleItemCase("3.5", float, 3.5),
-        SingleItemCase("true", bool, True),
-        SingleItemCase("read", Permission, Permission.READ),
-        SingleItemCase("active", Literal["active", "inactive"], "active"),
-        SingleItemCase("", str | None, None),
-        SingleItemCase(" hello ", str, "hello"),
+        SingleItemCase(
+            raw="42",
+            target_type=int,
+            expected=42,
+        ),
+        SingleItemCase(
+            raw="3.5",
+            target_type=float,
+            expected=3.5,
+        ),
+        SingleItemCase(
+            raw="true",
+            target_type=bool,
+            expected=True,
+        ),
+        SingleItemCase(
+            raw="read",
+            target_type=Permission,
+            expected=Permission.READ,
+        ),
+        SingleItemCase(
+            raw="active",
+            target_type=Literal["active", "inactive"],
+            expected="active",
+        ),
+        SingleItemCase(
+            raw="",
+            target_type=str | None,
+            expected=None,
+        ),
+        SingleItemCase(
+            raw=" hello ",
+            target_type=str,
+            expected="hello",
+        ),
     ],
 )
 def test_parse_single_item_value_success(case: SingleItemCase) -> None:
-    assert (
-        parse_single_item_value(case.raw, case.target_type, strip_val=case.strip)
-        == case.expected
-    )
+    actual = parse_single_item_value(case.raw, case.target_type, strip_val=case.strip)
+    assert actual == case.expected
 
 
 @pytest.mark.parametrize(
@@ -71,51 +97,62 @@ def test_parse_single_item_value_fails(raw: str, target_type: object) -> None:
 @pytest.mark.parametrize(
     "case",
     [
-        CollectionCase("values", (int,), "1,2,3", [1, 2, 3]),
-        CollectionCase("values", (str,), "a,a,b", {"a", "b"}),
-        CollectionCase("values", (int,), "", []),
-        CollectionCase("values", (int,), ",,,", []),
+        CollectionCase[int](
+            field_name="values",
+            args=(int,),
+            raw_value="1,2,3",
+            expected=[1, 2, 3],
+        ),
+        CollectionCase[str](
+            field_name="values",
+            args=(str,),
+            raw_value="a,a,b",
+            expected={"a", "b"},
+        ),
+        CollectionCase[int](
+            field_name="values",
+            args=(int,),
+            raw_value="",
+            expected=[],
+        ),
+        CollectionCase[int](
+            field_name="values",
+            args=(int,),
+            raw_value=",,,",
+            expected=[],
+        ),
     ],
 )
-def test_parse_list_or_set_from_env(case: CollectionCase) -> None:
+def test_parse_list_or_set_from_env(case: CollectionCase[object]) -> None:
     collection_origin = list if isinstance(case.expected, list) else set
-    assert (
-        parse_list_or_set_from_env(
-            case.field_name,
-            collection_origin,
-            case.args,
-            case.raw_value,
-            case.config,
-        )
-        == case.expected
+    actual = parse_list_or_set_from_env(
+        case.field_name,
+        collection_origin,
+        case.args,
+        case.raw_value,
+        case.config,
     )
+    assert actual == case.expected
 
 
 def test_parse_fixed_tuple_from_env() -> None:
     config = SimpleEnvConfig()
-    assert parse_fixed_tuple_from_env(
+    actual = parse_fixed_tuple_from_env(
         "values",
         (str, int, bool),
         "x,2,true",
         config,
-    ) == (
-        "x",
-        2,
-        True,
     )
+    assert actual == ("x", 2, True)
 
 
 def test_parse_variable_tuple_from_env() -> None:
     config = SimpleEnvConfig()
-    assert parse_variable_tuple_from_env("values", (float, ...), "1.2,3.4", config) == (
-        1.2,
-        3.4,
-    )
+    actual = parse_variable_tuple_from_env("values", (float, ...), "1.2,3.4", config)
+    assert actual == (1.2, 3.4)
 
 
 def test_parse_dict_from_env() -> None:
     config = SimpleEnvConfig(kv_delimiter=":")
-    assert parse_dict_from_env("values", (str, int), "a:1,b:2", config) == {
-        "a": 1,
-        "b": 2,
-    }
+    actual = parse_dict_from_env("values", (str, int), "a:1,b:2", config)
+    assert actual == {"a": 1, "b": 2}
