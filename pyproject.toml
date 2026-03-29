@@ -4,11 +4,13 @@ version = "0.1.0"
 description = "Simple delimiter-based environment parsing for Pydantic Settings collections"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "Apache-2.0"
 authors = [{ name = "Thomas Adamcik", email = "thomas@adamcik.no" }]
-keywords = ["pydantic", "settings", "environment", "env", "configuration"]
+keywords = ["configuration", "env", "environment", "pydantic", "settings"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: Implementation :: CPython",
@@ -23,6 +25,11 @@ dependencies = [
   "type-extensions>=0.1.2",
   "typing-extensions>=4.15.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/adamcik/pydantic-simple-env"
+Issues = "https://github.com/adamcik/pydantic-simple-env/issues"
+Repository = "https://github.com/adamcik/pydantic-simple-env"
 
 [dependency-groups]
 dev = ["pyright>=1.1.408", "pytest>=8.4.2", "ruff>=0.15.6"]
