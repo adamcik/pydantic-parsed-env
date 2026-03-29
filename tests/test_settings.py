@@ -1,8 +1,9 @@
 from enum import Enum, StrEnum
+from pathlib import Path
 from typing import Annotated, Literal
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import SettingsConfigDict, SettingsError
 
 from pydantic_simple_env import (
@@ -454,4 +455,50 @@ def test_non_simple_list_json_uses_default_env_parsing(monkeypatch: pytest.Monke
         values: list[int] = Field(default_factory=list[int])
 
     monkeypatch.setenv("app_values", "[1,2,3]")
+    assert Settings().values == [1, 2, 3]
+
+
+def test_simple_parser_field_respects_validation_alias(monkeypatch: pytest.MonkeyPatch):
+    class Settings(BaseSimpleEnvSettings):
+        values: SimpleParsed[list[int]] = Field(
+            default_factory=list[int],
+            validation_alias="CUSTOM_VALUES",
+        )
+
+    monkeypatch.setenv("CUSTOM_VALUES", "1,2,3")
+    assert Settings().values == [1, 2, 3]
+
+
+def test_non_simple_field_supports_alias_choices(monkeypatch: pytest.MonkeyPatch):
+    class Settings(BaseSimpleEnvSettings):
+        value: int = Field(default=0, validation_alias=AliasChoices("A", "B"))
+
+    monkeypatch.setenv("B", "7")
+    assert Settings().value == 7
+
+
+def test_non_simple_field_honors_env_nested_delimiter(monkeypatch: pytest.MonkeyPatch):
+    class Settings(BaseSimpleEnvSettings):
+        model_config = SettingsConfigDict(
+            env_prefix="APP_",
+            env_nested_delimiter="__",
+        )
+        payload: dict[str, int] = Field(default_factory=dict)
+
+    monkeypatch.setenv("APP_PAYLOAD__COUNT", "5")
+    assert Settings().payload == {"count": 5}
+
+
+def test_env_source_precedence_over_dotenv_for_simple_parser(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    env_file = tmp_path / ".env"
+    env_file.write_text("VALUES=4,5,6\n", encoding="utf-8")
+
+    class Settings(BaseSimpleEnvSettings):
+        model_config = SettingsConfigDict(env_file=str(env_file))
+        values: SimpleParsed[list[int]] = Field(default_factory=list[int])
+
+    monkeypatch.setenv("VALUES", "1,2,3")
     assert Settings().values == [1, 2, 3]
