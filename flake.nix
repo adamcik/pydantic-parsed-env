@@ -60,6 +60,24 @@
             ruff-check.enable = true;
             ruff-format.enable = true;
           };
+          settings.formatter = {
+            tombi-format = {
+              command = "${pkgs.tombi}/bin/tombi";
+              includes = ["*.toml"];
+              options = [
+                "format"
+                "--offline"
+              ];
+            };
+            tombi-lint = {
+              command = "${pkgs.tombi}/bin/tombi";
+              includes = ["*.toml"];
+              options = [
+                "lint"
+                "--offline"
+              ];
+            };
+          };
         };
 
         python = pkgs.python313;
@@ -108,6 +126,7 @@
         devShells.default = pkgs.mkShell {
           packages = [
             devEnv
+            pkgs.tombi
             treefmtEval.config.build.wrapper
             pkgs.nodejs
             pkgs.uv
