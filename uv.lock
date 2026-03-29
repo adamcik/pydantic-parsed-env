@@ -115,7 +115,6 @@ wheels = [
 
 [[package]]
 name = "pydantic-simple-env"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
