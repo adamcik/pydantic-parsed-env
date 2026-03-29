@@ -23,15 +23,16 @@ from ._parsers import (
     parse_variable_tuple_from_env,
 )
 
-
 # --- 1. Base Configuration Model for Simple Environment Parsing ---
 
 
 class SimpleEnvConfig(BaseModel):
-    """
-    Internal configuration model used by `SimpleEnvParser()` to hold delimiter settings.
-    Users typically interact with `SimpleEnvParser()` for annotation via `Field(metadata=...)`,
-    not this class directly.
+    """Internal configuration model for `SimpleEnvParser()`.
+
+    Stores delimiter settings.
+
+    Users typically interact with `SimpleEnvParser()` for annotation via
+    `Field(metadata=...)`, not this class directly.
     """
 
     item_delimiter: str = ","
@@ -43,12 +44,16 @@ class SimpleEnvConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_delimiters(self) -> "SimpleEnvConfig":
-        """Ensure item_delimiter and kv_delimiter are not the same for dicts,
-        if kv_delimiter is provided."""
+        """Ensure delimiters are distinct when dictionary parsing is enabled.
+
+        Ensure item_delimiter and kv_delimiter are not the same for dicts,
+        if kv_delimiter is provided.
+        """
         if self.kv_delimiter and self.item_delimiter == self.kv_delimiter:
             raise ValueError(
                 f"item_delimiter ('{self.item_delimiter}') cannot be the same as "
-                f"kv_delimiter ('{self.kv_delimiter}'). This would create parsing ambiguity."
+                f"kv_delimiter ('{self.kv_delimiter}'). "
+                "This would create parsing ambiguity.",
             )
         return self
 
@@ -56,25 +61,27 @@ class SimpleEnvConfig(BaseModel):
 # --- Annotation Factory Function ---
 
 
-def SimpleEnvParser(
-    item_delimiter: str = ",", kv_delimiter: str = ""
-) -> list[SimpleEnvConfig]:  # Returns a list containing the config instance.
-    """
-    Returns a list containing a `SimpleEnvConfig` instance, suitable for `Field(metadata=...)`.
+def SimpleEnvParser(  # noqa: N802 # public API name is intentionally PascalCase
+    item_delimiter: str = ",",
+    kv_delimiter: str = "",
+) -> list[SimpleEnvConfig]:
+    """Return a list containing a `SimpleEnvConfig` instance for `Field(metadata=...)`.
 
-    Annotate fields with `Field(metadata=SimpleEnvParser())` to enable simple environment
-    variable parsing.
+    Annotate fields with `Field(metadata=SimpleEnvParser())` to enable
+    simple environment variable parsing.
 
     Default behaviors (hardcoded within this source's logic):
     - Items are always stripped of leading/trailing whitespace.
     - An empty input string (e.g., "", ",,,") for lists/sets/variable tuples
       always results in an empty collection ([], {}, ()).
 
-    For dictionaries, `kv_delimiter` must be explicitly configured if it's not the default empty string.
+    For dictionaries, `kv_delimiter` must be explicitly configured if it's not
+    the default empty string.
 
     Examples:
         - `field: List[int] = Field(metadata=SimpleEnvParser())`
         - `field: Dict[str, str] = Field(metadata=SimpleEnvParser(kv_delimiter='='))`
+
     """
     # Return a list containing the SimpleEnvConfig instance.
     # Field(metadata=...) expects a heterogeneous list of metadata objects.
@@ -82,13 +89,16 @@ def SimpleEnvParser(
 
 
 class SimpleEnvSettingsSource(EnvSettingsSource):
-    """
-    This `EnvSettingsSource` subclass provides the implementation for simple environment
-    variable parsing based on `SimpleEnvConfig` instances found in `Field(metadata=...)`.
+    """`EnvSettingsSource` subclass implementing simple environment parsing.
+
+    This `EnvSettingsSource` subclass provides the implementation for simple
+    variable parsing based on `SimpleEnvConfig` instances found in
+    `Field(metadata=...)`.
 
     It specifically processes fields annotated with `SimpleEnvConfig` and otherwise
     defers to other sources or Pydantic's default behavior.
-    Most users should inherit from `BaseSimpleEnvSettings` instead of interacting with this directly.
+    Most users should inherit from `BaseSimpleEnvSettings` instead of
+    interacting with this directly.
     """
 
     def __call__(self) -> dict[str, object]:
@@ -104,7 +114,8 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
             if parsing_config is None:
                 data[field_name] = self._parse_default_env_value(
-                    field, env_val_from_source
+                    field,
+                    env_val_from_source,
                 )
                 continue  # Skip processing by this source
 
@@ -116,9 +127,11 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
             if origin is dict and not parsing_config.kv_delimiter:
                 raise TypeError(
-                    f"Field '{field_name}' is a Dict and is configured with SimpleEnvParser(), "
-                    f"but no 'kv_delimiter' is specified in the config. "
-                    f"Please use SimpleEnvParser(kv_delimiter=':') or similar for dictionaries."
+                    f"Field '{field_name}' is a Dict and is configured with "
+                    "SimpleEnvParser(), but no 'kv_delimiter' is specified in "
+                    "the config. Please use "
+                    "SimpleEnvParser(kv_delimiter=':') or similar for "
+                    "dictionaries.",
                 )
 
             if origin is list:
@@ -161,8 +174,9 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                 )
             else:
                 raise TypeError(
-                    f"Field '{field_name}' is configured with SimpleEnvParser() but its "
-                    f"type hint ({field.annotation}) is not a List, Set, Tuple, or Dict."
+                    f"Field '{field_name}' is configured with SimpleEnvParser() "
+                    f"but its type hint ({field.annotation}) is not a List, Set, "
+                    "Tuple, or Dict.",
                 )
 
             data[field_name] = parsed_value
@@ -218,8 +232,8 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
 
 class BaseSimpleEnvSettings(BaseSettings):
-    """
-    A base class for Pydantic settings models that enables simple environment variable
+    """Enable simple environment parsing for Pydantic settings models.
+
     parsing via `SimpleEnvConfig` annotations, avoiding complex JSON strings.
     """
 

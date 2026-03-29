@@ -56,7 +56,7 @@ def test_parse_single_item_value_success(case: SingleItemCase) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw,target_type",
+    ("raw", "target_type"),
     [
         ("nope", bool),
         ("unknown", Permission),
@@ -93,7 +93,12 @@ def test_parse_list_or_set_from_env(case: CollectionCase) -> None:
 
 def test_parse_fixed_tuple_from_env() -> None:
     config = SimpleEnvConfig()
-    assert parse_fixed_tuple_from_env("values", (str, int, bool), "x,2,true", config) == (
+    assert parse_fixed_tuple_from_env(
+        "values",
+        (str, int, bool),
+        "x,2,true",
+        config,
+    ) == (
         "x",
         2,
         True,

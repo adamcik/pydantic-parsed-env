@@ -3,8 +3,8 @@ name = "pydantic-simple-env"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [{ name = "Thomas Adamcik", email = "thomas@adamcik.no" }]
 requires-python = ">=3.13"
+authors = [{ name = "Thomas Adamcik", email = "thomas@adamcik.no" }]
 dependencies = [
   "pydantic>=2.11.7",
   "pydantic-settings>=2.10.1",
@@ -14,19 +14,58 @@ dependencies = [
   "typing-extensions>=4.15.0",
 ]
 
+[dependency-groups]
+dev = ["pyright>=1.1.408", "pytest>=8.4.2", "ruff>=0.15.6"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[dependency-groups]
-dev = [
-  "pyright>=1.1.408",
-  "pytest>=8.4.2",
-  "ruff>=0.15.6",
-]
 
 [tool.basedpyright]
 enableExperimentalFeatures = true
 
 [tool.pyright]
 typeCheckingMode = "strict"
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "A003",  # builtin-attribute-shadowing
+  "ANN401",  # any-type
+  "D203",  # incorrect-blank-line-before-class
+  "D213",  # multi-line-summary-second-line
+  "EM102",  # f-string-in-exception
+  "G004",  # logging-f-string
+  "C901",  # complex-structure
+  "PLR0911",  # too-many-return-statements
+  "PLR0912",  # too-many-branches
+  "PLR2004",  # magic-value-comparison
+  "RET504",  # unnecessary-assign
+  "TRY003",  # raise-vanilla-args
+  # Conflicts with `ruff format`
+  "COM812",  # missing-trailing-comma
+  "ISC001",  # single-line-implicit-string-concatenation
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+  "ANN001",  # missing-type-function-argument
+  "ANN201",  # missing-return-type-undocumented-public-function
+  "ARG001",  # unused-function-argument
+  "ARG002",  # unused-method-argument
+  "ARG003",  # unused-class-method-argument
+  "D100",  # undocumented-public-module
+  "D101",  # undocumented-public-class
+  "D102",  # undocumented-public-method
+  "D103",  # undocumented-public-function
+  "D104",  # undocumented-public-package
+  "D105",  # undocumented-magic-method
+  "D107",  # undocumented-public-init
+  "FBT003",  # boolean-positional-value-in-call
+  "INP001",  # implicit-namespace-package
+  "S101",  # assert
+  "TRY002",  # raise-vanilla-class
+]
