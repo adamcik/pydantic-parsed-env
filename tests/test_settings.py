@@ -269,7 +269,7 @@ def test_list_malformed_item_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "1,2,bad,4")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Could not parse item"):
         Settings()
 
 
@@ -279,7 +279,7 @@ def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "1,,2")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Empty string cannot be converted"):
         Settings()
 
 
@@ -292,7 +292,7 @@ def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "read,invalid")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not a valid Permission member"):
         Settings()
 
 
@@ -305,7 +305,7 @@ def test_literal_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "active,unknown")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not one of the allowed literal values"):
         Settings()
 
 
@@ -318,7 +318,7 @@ def test_fixed_tuple_wrong_length_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "hello,123")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Expected 3 items for fixed-length tuple"):
         Settings()
 
 
@@ -331,7 +331,7 @@ def test_dict_malformed_pair_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "k1:v1,broken,k2:v2")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Dictionary item 'broken' is malformed"):
         Settings()
 
 
@@ -374,7 +374,7 @@ def test_dict_key_type_conversion_fails(monkeypatch: pytest.MonkeyPatch):
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "invalid:value")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Could not parse key 'invalid'"):
         Settings()
 
 
@@ -401,7 +401,10 @@ def test_unsupported_complex_type_as_list_item_fails(monkeypatch: pytest.MonkeyP
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "1,2")
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Unsupported target type for direct string parsing",
+    ):
         Settings()
 
 
@@ -417,7 +420,10 @@ def test_unsupported_complex_type_as_dict_key_fails(monkeypatch: pytest.MonkeyPa
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "key:value")
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Unsupported target type for direct string parsing",
+    ):
         Settings()
 
 
@@ -433,5 +439,8 @@ def test_unsupported_complex_type_as_dict_value_fails(monkeypatch: pytest.Monkey
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "key:value")
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Unsupported target type for direct string parsing",
+    ):
         Settings()

@@ -242,10 +242,15 @@ class BaseSimpleEnvSettings(BaseSettings):
         cls,
         settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
-    ):
+    ) -> tuple[
+        PydanticBaseSettingsSource,
+        PydanticBaseSettingsSource,
+        PydanticBaseSettingsSource,
+        PydanticBaseSettingsSource,
+    ]:
         return (
             init_settings,
             SimpleEnvSettingsSource(settings_cls),

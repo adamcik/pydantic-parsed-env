@@ -104,13 +104,13 @@ def parse_single_item_value(
     if target_type is int:
         try:
             return int(processed_item_str, 0)
-        except ValueError:
-            raise ValueError(f"'{processed_item_str}' is not a valid integer.")
+        except ValueError as err:
+            raise ValueError(f"'{processed_item_str}' is not a valid integer.") from err
     if target_type is float:
         try:
             return float(processed_item_str)
-        except ValueError:
-            raise ValueError(f"'{processed_item_str}' is not a valid float.")
+        except ValueError as err:
+            raise ValueError(f"'{processed_item_str}' is not a valid float.") from err
     if target_type is str:
         return processed_item_str
 

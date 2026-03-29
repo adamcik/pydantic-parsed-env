@@ -64,7 +64,7 @@ def test_parse_single_item_value_success(case: SingleItemCase) -> None:
     ],
 )
 def test_parse_single_item_value_fails(raw: str, target_type: object) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not"):
         parse_single_item_value(raw, target_type, strip_val=True)
 
 
