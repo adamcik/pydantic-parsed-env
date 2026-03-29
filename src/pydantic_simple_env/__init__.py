@@ -10,6 +10,7 @@ from ._api import (
     SimpleEnvConfig,
     SimpleEnvParser,
     SimpleEnvSettingsSource,
+    SimpleParsed,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "SimpleEnvConfig",
     "SimpleEnvParser",
     "SimpleEnvSettingsSource",
+    "SimpleParsed",
 ]

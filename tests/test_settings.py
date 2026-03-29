@@ -5,7 +5,12 @@ import pytest
 from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
 
-from pydantic_simple_env import BaseSimpleEnvSettings, SimpleEnvConfig, SimpleEnvParser
+from pydantic_simple_env import (
+    BaseSimpleEnvSettings,
+    SimpleEnvConfig,
+    SimpleEnvParser,
+    SimpleParsed,
+)
 
 
 class Permission(StrEnum):
@@ -28,7 +33,7 @@ class StatusLiteral(StrEnum):
 
 def test_list_of_ints_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int]] = Field(
             default_factory=list[int],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -50,7 +55,7 @@ def test_list_of_strings_semicolon_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_mixed_list_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int | str | float | bool], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int | str | float | bool]] = Field(
             default_factory=list[int | str | float | bool],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -61,7 +66,7 @@ def test_mixed_list_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_permission_list_enum_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[Permission], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[Permission]] = Field(
             default_factory=list[Permission],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -72,10 +77,8 @@ def test_permission_list_enum_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_literal_list_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[Literal["active", "inactive"]], SimpleEnvParser()] = (
-            Field(
-                default_factory=list[Literal["active", "inactive"]],
-            )
+        values: SimpleParsed[list[Literal["active", "inactive"]]] = Field(
+            default_factory=list[Literal["active", "inactive"]],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
 
@@ -96,7 +99,7 @@ def test_set_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_fixed_tuple_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[tuple[str, int, bool], SimpleEnvParser()] = Field(
+        values: SimpleParsed[tuple[str, int, bool]] = Field(
             default=("", 0, False),
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -107,7 +110,7 @@ def test_fixed_tuple_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_variable_tuple_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[tuple[float, ...], SimpleEnvParser()] = Field(default=())
+        values: SimpleParsed[tuple[float, ...]] = Field(default=())
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "1.1,2.2,3.3")
@@ -116,7 +119,7 @@ def test_variable_tuple_success(monkeypatch: pytest.MonkeyPatch):
 
 def test_fixed_tuple_optional_element_success(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[tuple[str, int | None, int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[tuple[str, int | None, int]] = Field(
             default=("", None, 0),
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -194,7 +197,7 @@ def test_dict_optional_values(monkeypatch: pytest.MonkeyPatch):
 
 def test_empty_input_to_empty_list(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int]] = Field(
             default_factory=list[int],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -205,7 +208,7 @@ def test_empty_input_to_empty_list(monkeypatch: pytest.MonkeyPatch):
 
 def test_only_delimiters_to_empty_list(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int]] = Field(
             default_factory=list[int],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -216,7 +219,7 @@ def test_only_delimiters_to_empty_list(monkeypatch: pytest.MonkeyPatch):
 
 def test_empty_input_to_empty_variable_tuple(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[tuple[float, ...], SimpleEnvParser()] = Field(default=())
+        values: SimpleParsed[tuple[float, ...]] = Field(default=())
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "")
@@ -225,7 +228,7 @@ def test_empty_input_to_empty_variable_tuple(monkeypatch: pytest.MonkeyPatch):
 
 def test_conflicting_bool_enum_precedence(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[ConflictingBool | bool], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[ConflictingBool | bool]] = Field(
             default_factory=list[ConflictingBool | bool],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -240,7 +243,7 @@ def test_conflicting_bool_enum_precedence(monkeypatch: pytest.MonkeyPatch):
 
 def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[StatusLiteral | bool], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[StatusLiteral | bool]] = Field(
             default_factory=list[StatusLiteral | bool],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -255,7 +258,7 @@ def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
 
 def test_unsupported_top_level_type_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        value: Annotated[int, SimpleEnvParser()] = Field(default=0)
+        value: SimpleParsed[int] = Field(default=0)
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUE", "42")
@@ -265,7 +268,7 @@ def test_unsupported_top_level_type_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_list_malformed_item_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int]] = Field(
             default_factory=list[int],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -277,7 +280,7 @@ def test_list_malformed_item_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[int]] = Field(
             default_factory=list[int],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -289,7 +292,7 @@ def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[Permission], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[Permission]] = Field(
             default_factory=list[Permission],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -301,10 +304,8 @@ def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_literal_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[Literal["active", "inactive"]], SimpleEnvParser()] = (
-            Field(
-                default_factory=list[Literal["active", "inactive"]],
-            )
+        values: SimpleParsed[list[Literal["active", "inactive"]]] = Field(
+            default_factory=list[Literal["active", "inactive"]],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
 
@@ -315,7 +316,7 @@ def test_literal_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_fixed_tuple_wrong_length_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[tuple[str, int, bool], SimpleEnvParser()] = Field(
+        values: SimpleParsed[tuple[str, int, bool]] = Field(
             default=("", 0, False),
         )
         model_config = SettingsConfigDict(env_prefix="APP_")
@@ -339,9 +340,7 @@ def test_dict_malformed_pair_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_dict_missing_kv_delimiter_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, str], SimpleEnvParser()] = Field(
-            default_factory=dict
-        )
+        values: SimpleParsed[dict[str, str]] = Field(default_factory=dict)
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUES", "k1:v1")
@@ -382,7 +381,7 @@ def test_dict_key_type_conversion_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_unsupported_union_root_type_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(BaseSimpleEnvSettings):
-        value: Annotated[str | list[int], SimpleEnvParser()] = Field(default="")
+        value: SimpleParsed[str | list[int]] = Field(default="")
         model_config = SettingsConfigDict(env_prefix="APP_")
 
     monkeypatch.setenv("APP_VALUE", "something")
@@ -396,7 +395,7 @@ def test_unsupported_complex_type_as_list_item_fails(monkeypatch: pytest.MonkeyP
         y: int
 
     class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[Coordinates], SimpleEnvParser()] = Field(
+        values: SimpleParsed[list[Coordinates]] = Field(
             default_factory=list[Coordinates],
         )
         model_config = SettingsConfigDict(env_prefix="APP_")

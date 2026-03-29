@@ -2,9 +2,8 @@
 
 import json
 import os
-from typing import get_origin
+from typing import Annotated, get_origin
 
-# Import Field from pydantic for metadata argument
 from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -31,8 +30,8 @@ class SimpleEnvConfig(BaseModel):
 
     Stores delimiter settings.
 
-    Users typically interact with `SimpleEnvParser()` for annotation via
-    `Field(metadata=...)`, not this class directly.
+    Users typically interact with `SimpleEnvParser()` via `Annotated[...]`
+    metadata, not this class directly.
     """
 
     item_delimiter: str = ","
@@ -65,10 +64,10 @@ def SimpleEnvParser(  # noqa: N802 # public API name is intentionally PascalCase
     item_delimiter: str = ",",
     kv_delimiter: str = "",
 ) -> list[SimpleEnvConfig]:
-    """Return a list containing a `SimpleEnvConfig` instance for `Field(metadata=...)`.
+    """Return `Annotated[...]` metadata describing simple env parsing rules.
 
-    Annotate fields with `Field(metadata=SimpleEnvParser())` to enable
-    simple environment variable parsing.
+    Annotate fields with `Annotated[T, SimpleEnvParser(...)]` to enable simple
+    environment variable parsing.
 
     Default behaviors (hardcoded within this source's logic):
     - Items are always stripped of leading/trailing whitespace.
@@ -79,21 +78,29 @@ def SimpleEnvParser(  # noqa: N802 # public API name is intentionally PascalCase
     the default empty string.
 
     Examples:
-        - `field: List[int] = Field(metadata=SimpleEnvParser())`
-        - `field: Dict[str, str] = Field(metadata=SimpleEnvParser(kv_delimiter='='))`
+        - `field: Annotated[list[int], SimpleEnvParser()] =`
+          `Field(default_factory=list[int])`
+        - `field: Annotated[dict[str, str], SimpleEnvParser(kv_delimiter='=')] =`
+          `Field(default_factory=dict[str, str])`
 
     """
-    # Return a list containing the SimpleEnvConfig instance.
-    # Field(metadata=...) expects a heterogeneous list of metadata objects.
     return [SimpleEnvConfig(item_delimiter=item_delimiter, kv_delimiter=kv_delimiter)]
+
+
+type SimpleParsed[T] = Annotated[T, SimpleEnvParser()]
+"""Convenience alias for the default parser configuration.
+
+Use `SimpleParsed[T]` as shorthand for `Annotated[T, SimpleEnvParser()]`.
+For custom delimiters, use explicit `Annotated[T, SimpleEnvParser(...)]`.
+"""
 
 
 class SimpleEnvSettingsSource(EnvSettingsSource):
     """`EnvSettingsSource` subclass implementing simple environment parsing.
 
     This `EnvSettingsSource` subclass provides the implementation for simple
-    variable parsing based on `SimpleEnvConfig` instances found in
-    `Field(metadata=...)`.
+    variable parsing based on `SimpleEnvConfig` instances found in annotation
+    metadata.
 
     It specifically processes fields annotated with `SimpleEnvConfig` and otherwise
     defers to other sources or Pydantic's default behavior.
@@ -122,8 +129,9 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             # --- If we reach here, value IS from env AND has our custom config ---
             value = env_val_from_source  # Raw string from environment
 
-            origin = get_origin(field.annotation)
-            parsed_annotation_args = annotation_args(field.annotation)
+            resolved_annotation = self._resolve_annotation(field.annotation)
+            origin = get_origin(resolved_annotation)
+            parsed_annotation_args = annotation_args(resolved_annotation)
 
             if origin is dict and not parsing_config.kv_delimiter:
                 raise TypeError(
@@ -175,7 +183,7 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             else:
                 raise TypeError(
                     f"Field '{field_name}' is configured with SimpleEnvParser() "
-                    f"but its type hint ({field.annotation}) is not a List, Set, "
+                    f"but its type hint ({resolved_annotation}) is not a List, Set, "
                     "Tuple, or Dict.",
                 )
 
@@ -185,6 +193,11 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
     def _get_parsing_config(self, field: FieldInfo) -> SimpleEnvConfig | None:
         for meta_item in self._iter_metadata_items(field.metadata):
+            if isinstance(meta_item, SimpleEnvConfig):
+                return meta_item
+
+        annotation_metadata = self._annotation_metadata_items(field.annotation)
+        for meta_item in self._iter_metadata_items(annotation_metadata):
             if isinstance(meta_item, SimpleEnvConfig):
                 return meta_item
 
@@ -201,6 +214,91 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
 
         return None
 
+    def _annotation_metadata_items(self, annotation: object) -> list[object]:
+        flattened: list[object] = []
+        queue: list[object] = [annotation]
+
+        while queue:
+            current = queue.pop()
+            origin = get_origin(current)
+
+            if origin is Annotated:
+                args = annotation_args(current)
+                if args:
+                    queue.append(args[0])
+                    flattened.extend(args[1:])
+                continue
+
+            if origin is not None and hasattr(origin, "__value__"):
+                alias_value = getattr(origin, "__value__", None)
+                alias_args = annotation_args(current)
+                if alias_value is None:
+                    continue
+
+                if alias_args:
+                    substituted_args: object | tuple[object, ...]
+                    substituted_args = (
+                        alias_args[0] if len(alias_args) == 1 else alias_args
+                    )
+                    try:
+                        queue.append(alias_value[substituted_args])
+                    except TypeError:
+                        queue.append(alias_value)
+                else:
+                    queue.append(alias_value)
+                continue
+
+            if hasattr(current, "__value__"):
+                alias_value = getattr(current, "__value__", None)
+                if alias_value is not None:
+                    queue.append(alias_value)
+
+        return flattened
+
+    def _resolve_annotation(self, annotation: object) -> object:
+        current = annotation
+        seen: set[int] = set()
+
+        while id(current) not in seen:
+            seen.add(id(current))
+            origin = get_origin(current)
+
+            if origin is Annotated:
+                args = annotation_args(current)
+                if args:
+                    current = args[0]
+                    continue
+                return current
+
+            if origin is not None and hasattr(origin, "__value__"):
+                alias_value = getattr(origin, "__value__", None)
+                alias_args = annotation_args(current)
+                if alias_value is None:
+                    return current
+
+                if alias_args:
+                    substituted_args: object | tuple[object, ...]
+                    substituted_args = (
+                        alias_args[0] if len(alias_args) == 1 else alias_args
+                    )
+                    try:
+                        current = alias_value[substituted_args]
+                    except TypeError:
+                        current = alias_value
+                else:
+                    current = alias_value
+                continue
+
+            if hasattr(current, "__value__"):
+                alias_value = getattr(current, "__value__", None)
+                if alias_value is not None:
+                    current = alias_value
+                    continue
+
+            return current
+
+        return current
+
     def _iter_metadata_items(self, items: list[object]) -> list[object]:
         flattened: list[object] = []
         for item in items:
@@ -211,7 +309,7 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         return flattened
 
     def _parse_default_env_value(self, field: FieldInfo, raw_value: str) -> object:
-        origin = get_origin(field.annotation)
+        origin = get_origin(self._resolve_annotation(field.annotation))
         if origin in (list, set, tuple, dict):
             return json.loads(raw_value)
         return raw_value

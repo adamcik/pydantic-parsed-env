@@ -29,21 +29,23 @@ uv run pytest -q
 ## Usage
 
 ```python
-from typing import Dict, List
+from typing import Annotated
 
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
-from pydantic_simple_env import BaseSimpleEnvSettings, SimpleEnvParser
+from pydantic_simple_env import BaseSimpleEnvSettings, SimpleEnvParser, SimpleParsed
 
 
 class Settings(BaseSimpleEnvSettings):
     model_config = SettingsConfigDict(env_prefix="APP_")
 
-    hosts: List[str] = Field(default_factory=list, metadata=SimpleEnvParser())
-    ports: Dict[str, int] = Field(
-        default_factory=dict,
-        metadata=SimpleEnvParser(item_delimiter=",", kv_delimiter=":"),
+    hosts: SimpleParsed[list[str]] = Field(default_factory=list[str])
+    ports: Annotated[
+        dict[str, int],
+        SimpleEnvParser(item_delimiter=",", kv_delimiter=":"),
+    ] = Field(
+        default_factory=dict[str, int],
     )
 
 
@@ -56,7 +58,7 @@ assert cfg.ports == {"http": 80, "https": 443}
 
 ## Current parsing contract
 
-When a field is annotated with `SimpleEnvParser(...)`:
+When a field is annotated with `SimpleEnvParser(...)` metadata:
 
 - Supported collection types: `list[T]`, `set[T]`, `tuple[...]`, `dict[K, V]`
 - Item whitespace is stripped before conversion
@@ -73,6 +75,11 @@ Element conversion currently supports:
 - `Union[...]` of supported types
 
 Fields without `SimpleEnvParser(...)` use normal Pydantic Settings behavior.
+
+Recommended pattern:
+
+- Use `SimpleParsed[T]` for default delimiters (`Annotated[T, SimpleEnvParser()]`)
+- Use explicit `Annotated[T, SimpleEnvParser(...)]` for custom delimiters
 
 ## Known limits
 
