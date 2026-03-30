@@ -1,4 +1,4 @@
-# pydantic-simple-env
+# pydantic-parsed-env
 
 Parse common collection settings from simple env strings instead of JSON.
 
@@ -8,7 +8,7 @@ If you want `ALLOWED_HOSTS=api.local,worker.local` (not
 ## Quickstart
 
 ```bash
-pip install pydantic-simple-env
+pip install pydantic-parsed-env
 ```
 
 Requires Python 3.13+.
@@ -19,7 +19,7 @@ from typing import Annotated
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
-from pydantic_simple_env import ParseOptions, Parsed, ParsedEnvSettings
+from pydantic_parsed_env import ParseOptions, Parsed, ParsedEnvSettings
 
 
 class Settings(ParsedEnvSettings):
@@ -59,7 +59,7 @@ nullable collection items, or other complex shapes.
 That can be verbose and brittle in shell scripts, Docker env files, and ops
 tooling.
 
-`pydantic-simple-env` keeps common collection config short and readable:
+`pydantic-parsed-env` keeps common collection config short and readable:
 
 - `APP_HOSTS=api.local,worker.local`
 - `APP_FEATURE_FLAGS=true,false,true`

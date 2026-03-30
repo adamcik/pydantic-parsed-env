@@ -1,4 +1,4 @@
-# src/pydantic_simple_env/_api.py
+# src/pydantic_parsed_env/_api.py
 
 from typing import Annotated, get_origin
 

@@ -1,5 +1,5 @@
 [project]
-name = "pydantic-simple-env"
+name = "pydantic-parsed-env"
 description = "Simple delimiter-based environment parsing for Pydantic Settings collections"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -23,9 +23,9 @@ dependencies = [
 dynamic = ["version"]
 
 [project.urls]
-Homepage = "https://github.com/adamcik/pydantic-simple-env"
-Issues = "https://github.com/adamcik/pydantic-simple-env/issues"
-Repository = "https://github.com/adamcik/pydantic-simple-env"
+Homepage = "https://github.com/adamcik/pydantic-parsed-env"
+Issues = "https://github.com/adamcik/pydantic-parsed-env/issues"
+Repository = "https://github.com/adamcik/pydantic-parsed-env"
 
 [dependency-groups]
 dev = ["pyright>=1.1.408", "pytest>=8.4.2", "ruff>=0.15.6"]

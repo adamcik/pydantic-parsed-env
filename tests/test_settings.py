@@ -6,7 +6,7 @@ import pytest
 from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import SettingsConfigDict, SettingsError
 
-from pydantic_simple_env import (
+from pydantic_parsed_env import (
     ParseConfig,
     Parsed,
     ParsedEnvSettings,

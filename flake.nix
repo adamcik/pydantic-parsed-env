@@ -1,5 +1,5 @@
 {
-  description = "pydantic-simple-env dev environment";
+  description = "pydantic-parsed-env dev environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -88,8 +88,8 @@
             overlay
           ]);
 
-        env = pythonSet.mkVirtualEnv "pydantic-simple-env" workspace.deps.default;
-        devEnv = pythonSet.mkVirtualEnv "pydantic-simple-env-dev" workspace.deps.all;
+        env = pythonSet.mkVirtualEnv "pydantic-parsed-env" workspace.deps.default;
+        devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" workspace.deps.all;
       in {
         packages.default = env;
         formatter = treefmtEval.config.build.wrapper;

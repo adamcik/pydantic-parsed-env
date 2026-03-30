@@ -16,7 +16,7 @@ from ._api import (
 )
 
 try:
-    __version__ = version("pydantic-simple-env")
+    __version__ = version("pydantic-parsed-env")
 except PackageNotFoundError:
     __version__ = "0+unknown"
 

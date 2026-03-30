@@ -4,8 +4,8 @@ from typing import Literal
 
 import pytest
 
-from pydantic_simple_env._api import ParseConfig
-from pydantic_simple_env._parsers import (
+from pydantic_parsed_env._api import ParseConfig
+from pydantic_parsed_env._parsers import (
     parse_dict_from_env,
     parse_fixed_tuple_from_env,
     parse_list_or_set_from_env,
