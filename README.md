@@ -5,22 +5,7 @@ Parse common collection settings from simple env strings instead of JSON.
 If you want `ALLOWED_HOSTS=api.local,worker.local` (not
 `ALLOWED_HOSTS=["api.local","worker.local"]`), this package is for you.
 
-## Why
-
-`pydantic-settings` is excellent, but for structured values it commonly expects
-JSON in environment variables.
-
-That can be verbose and brittle in shell scripts, Docker env files, and ops
-tooling.
-
-`pydantic-simple-env` adds a lightweight parser for common collection types so
-env vars stay readable:
-
-- `APP_HOSTS=api.local,worker.local`
-- `APP_FEATURE_FLAGS=true,false,true`
-- `APP_PORTS=http:80,https:443`
-
-## Install
+## Quickstart
 
 ```bash
 pip install pydantic-simple-env
@@ -28,89 +13,144 @@ pip install pydantic-simple-env
 
 Requires Python 3.13+.
 
-## Happy path
-
-Use `BaseSimpleEnvSettings` and annotate only the fields you want to parse with
-simple delimiters.
-
 ```python
 from typing import Annotated
 
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
-from pydantic_simple_env import BaseSimpleEnvSettings, SimpleEnvParser, SimpleParsed
+from pydantic_simple_env import ParseOptions, Parsed, ParsedEnvSettings
 
 
-class Settings(BaseSimpleEnvSettings):
+class Settings(ParsedEnvSettings):
     model_config = SettingsConfigDict(env_prefix="APP_")
 
-    hosts: SimpleParsed[list[str]] = Field(default_factory=list[str])
+    hosts: Parsed[list[str]] = Field(default_factory=list[str])
     ports: Annotated[
         dict[str, int],
-        SimpleEnvParser(kv_delimiter=":"),
+        ParseOptions(kv_delimiter="="),
     ] = Field(default_factory=dict[str, int])
 
 
-# APP_HOSTS="api.local, worker.local"
-# APP_PORTS="http:80,https:443"
+# export APP_HOSTS="api.local, worker.local"
+# export APP_PORTS="http=80,https=443"
+
 settings = Settings()
 
 assert settings.hosts == ["api.local", "worker.local"]
 assert settings.ports == {"http": 80, "https": 443}
 ```
 
-## What gets parsed
+In the simple case, you can use `Parsed[dict[str, int]]` and the default
+`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to
+show delimiter override.
 
-`SimpleEnvParser(...)` applies to these field types:
+## When to use this
+
+Use this package when you want readable delimiter-based env values for
+collections.
+
+Use plain `pydantic-settings` JSON parsing when you need nested objects,
+nullable collection items, or other complex shapes.
+
+## Why
+
+`pydantic-settings` is excellent, but structured env values commonly use JSON.
+That can be verbose and brittle in shell scripts, Docker env files, and ops
+tooling.
+
+`pydantic-simple-env` keeps common collection config short and readable:
+
+- `APP_HOSTS=api.local,worker.local`
+- `APP_FEATURE_FLAGS=true,false,true`
+- `APP_PORTS=http:80,https:443`
+
+## Core API
+
+- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env
+  source.
+- `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
+- `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
+
+`ParseOptions(...)` metadata alone is not enough. The custom parser is
+installed via `settings_customise_sources`, so your settings class must inherit
+from `ParsedEnvSettings`.
+
+## Supported parsing
+
+`ParseOptions(...)` applies to:
 
 - `list[T]`
 - `set[T]`
 - `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
-- `dict[K, V]` (requires `kv_delimiter`)
+- `dict[K, V]` (uses default `kv_delimiter` set to `:`)
 
 Supported element conversion:
 
 - `str`, `int`, `float`, `bool` (`true` / `false`)
 - `Enum` / `StrEnum`
 - `Literal[...]`
-- `Union[...]` of supported scalar types
 
-Fields without `SimpleEnvParser(...)` keep normal `pydantic-settings` behavior
-(including JSON parsing for complex values).
+Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior,
+including JSON parsing for complex values.
 
-## API
+## Behavior matrix
 
-- `BaseSimpleEnvSettings`: `BaseSettings` subclass wiring in the custom env
-  source.
-- `SimpleParsed[T]`: shorthand for `Annotated[T, SimpleEnvParser()]`.
-- `SimpleEnvParser(...)`: annotation metadata factory for delimiter-based
-  parsing.
+| Field type                            | Example input         | Parsed result                |
+| ------------------------------------- | --------------------- | ---------------------------- |
+| `list[int]`                           | `"1,2,3"`             | `[1, 2, 3]`                  |
+| `set[str]`                            | `"a,a,b"`             | `{"a", "b"}`                 |
+| `tuple[float, ...]`                   | `"1.2,3.4"`           | `(1.2, 3.4)`                 |
+| `tuple[str, int]`                     | `"host,80"`           | `("host", 80)`               |
+| `dict[str, int]` + `kv_delimiter=":"` | `"http:80,https:443"` | `{"http": 80, "https": 443}` |
 
-## Why a base class is required
+## Empty and malformed input semantics
 
-Today, custom parsing is installed via `settings_customise_sources`, so you need
-to inherit from `BaseSimpleEnvSettings`.
+- For collection fields, unset and `""` map to empty collections:
+  - `list[T] -> []`
+  - `set[T] -> set()`
+  - `tuple[T, ...] -> ()`
+  - `dict[K, V] -> {}`
 
-In other words: using `SimpleEnvParser(...)` annotations alone is not enough;
-the custom source must be part of the settings source chain.
+- For required fields without defaults, unset values still follow normal
+  `pydantic-settings` required-field behavior.
 
-If `pydantic-settings` gains a cleaner extension point for field-local env
-parsing without source customization, this package may support that path in the
-future.
+- `None` is not inferred from empty input by default. If you need nullable
+  collection values, use an explicit sentinel convention.
+
+- Parsing is strict for malformed segments:
+  - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
+  - `"k1:v1,broken,k2:v2"` is invalid for `dict[K, V]`.
+
+- Empty segments are allowed for `str` items:
+  - `list[str]`: `"a,,b" -> ["a", "", "b"]`
+
+## Dict parsing rules
+
+- Dict fields require a key-value delimiter, for example
+  `ParseOptions(kv_delimiter=":")`.
+- Each pair must match `key<kv_delimiter>value`, for example `"k:v"`.
+- Whitespace around keys and values is trimmed before conversion.
+- Duplicate keys use the last value encountered:
+  - `"a:1,a:2" -> {"a": 2}`
 
 ## Error behavior
 
 At the settings integration layer, parsing errors are raised as
 `pydantic_settings.SettingsError` (matching upstream source behavior).
 
-Detailed parser failure context is kept in `SettingsError.__cause__`.
+Detailed parser failure context is preserved in `SettingsError.__cause__`.
 
-## Limits
+## Non-goals and limits
 
 - Complex nested model elements (for example `list[MyModel]`) are not supported
   by simple string parsing.
-- Applying `SimpleEnvParser(...)` to non-collection fields is a type error.
+- Nullable item types inside collections (for example `list[int | None]` or
+  `dict[str, bool | None]`) are intentionally out of scope for simple parsing.
+  Use standard JSON-based `pydantic-settings` parsing for those shapes.
+- Complex item-level unions (including nullable item unions) are not supported
+  for simple parsing.
+- Applying `ParseOptions(...)` to non-collection fields is a type error.
 
 ## Development
 
