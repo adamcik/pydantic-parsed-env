@@ -11,7 +11,7 @@ If you want `ALLOWED_HOSTS=api.local,worker.local` (not
 pip install pydantic-parsed-env
 ```
 
-Requires Python 3.13+.
+Requires Python 3.12+.
 
 ```python
 from typing import Annotated

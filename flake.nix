@@ -80,7 +80,7 @@
           };
         };
 
-        python = pkgs.python313;
+        python = pkgs.python312;
         pythonSet =
           (pkgs.callPackage pyproject-nix.build.packages {inherit python;}).overrideScope
           (pkgs.lib.composeManyExtensions [
@@ -124,6 +124,11 @@
         };
 
         devShells.default = pkgs.mkShell {
+          shellHook = ''
+            export UV_PYTHON_DOWNLOADS=never
+            export UV_PYTHON_PREFERENCE=only-system
+          '';
+
           packages = [
             devEnv
             pkgs.tombi
