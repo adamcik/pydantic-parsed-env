@@ -21,15 +21,13 @@ from ._parsers import (
     parse_variable_tuple_from_env,
 )
 
-# --- 1. Base Configuration Model for Simple Environment Parsing ---
 
-
-class SimpleEnvConfig(BaseModel):
-    """Internal configuration model for `SimpleEnvParser()`.
+class ParseConfig(BaseModel):
+    """Internal configuration model for `ParseOptions()`.
 
     Stores delimiter settings.
 
-    Users typically interact with `SimpleEnvParser()` via `Annotated[...]`
+    Users typically interact with `ParseOptions()` via `Annotated[...]`
     metadata, not this class directly.
     """
 
@@ -41,7 +39,7 @@ class SimpleEnvConfig(BaseModel):
     """Delimiter for key:value within dict entries."""
 
     @model_validator(mode="after")
-    def check_delimiters(self) -> "SimpleEnvConfig":
+    def check_delimiters(self) -> "ParseConfig":
         """Ensure delimiters are distinct when dictionary parsing is enabled.
 
         Ensure item_delimiter and kv_delimiter are not the same for dicts,
@@ -56,16 +54,13 @@ class SimpleEnvConfig(BaseModel):
         return self
 
 
-# --- Annotation Factory Function ---
-
-
-def SimpleEnvParser(  # noqa: N802 # public API name is intentionally PascalCase
+def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
     item_delimiter: str = ",",
     kv_delimiter: str = "",
-) -> list[SimpleEnvConfig]:
+) -> list[ParseConfig]:
     """Return `Annotated[...]` metadata describing simple env parsing rules.
 
-    Annotate fields with `Annotated[T, SimpleEnvParser(...)]` to enable simple
+    Annotate fields with `Annotated[T, ParseOptions(...)]` to enable simple
     environment variable parsing.
 
     Default behaviors (hardcoded within this source's logic):
@@ -77,33 +72,29 @@ def SimpleEnvParser(  # noqa: N802 # public API name is intentionally PascalCase
     the default empty string.
 
     Examples:
-        - `field: Annotated[list[int], SimpleEnvParser()] =`
+        - `field: Annotated[list[int], ParseOptions()] =`
           `Field(default_factory=list[int])`
-        - `field: Annotated[dict[str, str], SimpleEnvParser(kv_delimiter='=')] =`
+        - `field: Annotated[dict[str, str], ParseOptions(kv_delimiter='=')] =`
           `Field(default_factory=dict[str, str])`
 
     """
-    return [SimpleEnvConfig(item_delimiter=item_delimiter, kv_delimiter=kv_delimiter)]
+    return [ParseConfig(item_delimiter=item_delimiter, kv_delimiter=kv_delimiter)]
 
 
-type SimpleParsed[T] = Annotated[T, SimpleEnvParser()]
-"""Convenience alias for the default parser configuration.
-
-Use `SimpleParsed[T]` as shorthand for `Annotated[T, SimpleEnvParser()]`.
-For custom delimiters, use explicit `Annotated[T, SimpleEnvParser(...)]`.
-"""
+type Parsed[T] = Annotated[T, ParseOptions()]
+"""Convenience alias for `Annotated[T, ParseOptions()]`."""
 
 
-class SimpleEnvSettingsSource(EnvSettingsSource):
+class ParsedEnvSettingsSource(EnvSettingsSource):
     """`EnvSettingsSource` subclass implementing simple environment parsing.
 
     This `EnvSettingsSource` subclass provides the implementation for simple
-    variable parsing based on `SimpleEnvConfig` instances found in annotation
+    variable parsing based on `ParseConfig` instances found in annotation
     metadata.
 
-    It specifically processes fields annotated with `SimpleEnvConfig` and otherwise
+    It specifically processes fields annotated with `ParseConfig` and otherwise
     defers to other sources or Pydantic's default behavior.
-    Most users should inherit from `BaseSimpleEnvSettings` instead of
+    Most users should inherit from `ParsedEnvSettings` instead of
     interacting with this directly.
     """
 
@@ -135,7 +126,7 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         field_name: str,
         field: FieldInfo,
         value: str,
-        parsing_config: SimpleEnvConfig,
+        parsing_config: ParseConfig,
     ) -> object:
         resolved_annotation = self._resolve_annotation(field.annotation)
         origin = get_origin(resolved_annotation)
@@ -144,9 +135,9 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         if origin is dict and not parsing_config.kv_delimiter:
             raise TypeError(
                 f"Field '{field_name}' is a Dict and is configured with "
-                "SimpleEnvParser(), but no 'kv_delimiter' is specified in "
+                "ParseOptions(), but no 'kv_delimiter' is specified in "
                 "the config. Please use "
-                "SimpleEnvParser(kv_delimiter=':') or similar for "
+                "ParseOptions(kv_delimiter=':') or similar for "
                 "dictionaries.",
             )
 
@@ -189,19 +180,19 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
             )
 
         raise TypeError(
-            f"Field '{field_name}' is configured with SimpleEnvParser() "
+            f"Field '{field_name}' is configured with ParseOptions() "
             f"but its type hint ({resolved_annotation}) is not a List, Set, "
             "Tuple, or Dict.",
         )
 
-    def _get_parsing_config(self, field: FieldInfo) -> SimpleEnvConfig | None:
+    def _get_parsing_config(self, field: FieldInfo) -> ParseConfig | None:
         for meta_item in self._iter_metadata_items(field.metadata):
-            if isinstance(meta_item, SimpleEnvConfig):
+            if isinstance(meta_item, ParseConfig):
                 return meta_item
 
         annotation_metadata = self._annotation_metadata_items(field.annotation)
         for meta_item in self._iter_metadata_items(annotation_metadata):
-            if isinstance(meta_item, SimpleEnvConfig):
+            if isinstance(meta_item, ParseConfig):
                 return meta_item
 
         metadata_items: list[object] = []
@@ -212,7 +203,7 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
                 metadata_items = raw_metadata
 
         for meta_item in self._iter_metadata_items(metadata_items):
-            if isinstance(meta_item, SimpleEnvConfig):
+            if isinstance(meta_item, ParseConfig):
                 return meta_item
 
         return None
@@ -310,13 +301,10 @@ class SimpleEnvSettingsSource(EnvSettingsSource):
         return flattened
 
 
-# --- 3. Base Class for Simple Environment Parsing Settings ---
-
-
-class BaseSimpleEnvSettings(BaseSettings):
+class ParsedEnvSettings(BaseSettings):
     """Enable simple environment parsing for Pydantic settings models.
 
-    parsing via `SimpleEnvConfig` annotations, avoiding complex JSON strings.
+    parsing via `ParseConfig` annotations, avoiding complex JSON strings.
     """
 
     @classmethod
@@ -335,7 +323,7 @@ class BaseSimpleEnvSettings(BaseSettings):
     ]:
         return (
             init_settings,
-            SimpleEnvSettingsSource(settings_cls),
+            ParsedEnvSettingsSource(settings_cls),
             dotenv_settings,
             file_secret_settings,
         )

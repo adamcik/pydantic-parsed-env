@@ -7,10 +7,10 @@ from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import SettingsConfigDict, SettingsError
 
 from pydantic_simple_env import (
-    BaseSimpleEnvSettings,
-    SimpleEnvConfig,
-    SimpleEnvParser,
-    SimpleParsed,
+    ParseConfig,
+    Parsed,
+    ParsedEnvSettings,
+    ParseOptions,
 )
 
 
@@ -33,8 +33,8 @@ class StatusLiteral(StrEnum):
 
 
 def test_list_of_ints_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[int], SimpleEnvParser()] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[list[int], ParseOptions()] = Field(
             default_factory=list[int],
         )
 
@@ -43,8 +43,8 @@ def test_list_of_ints_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_list_of_strings_semicolon_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[list[str], SimpleEnvParser(item_delimiter=";")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[list[str], ParseOptions(item_delimiter=";")] = Field(
             default_factory=list,
         )
 
@@ -53,8 +53,8 @@ def test_list_of_strings_semicolon_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_mixed_list_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int | str | float | bool]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int | str | float | bool]] = Field(
             default_factory=list[int | str | float | bool],
         )
 
@@ -63,8 +63,8 @@ def test_mixed_list_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_permission_list_enum_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[Permission]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[Permission]] = Field(
             default_factory=list[Permission],
         )
 
@@ -73,8 +73,8 @@ def test_permission_list_enum_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_literal_list_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[Literal["active", "inactive"]]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[Literal["active", "inactive"]]] = Field(
             default_factory=list[Literal["active", "inactive"]],
         )
 
@@ -83,8 +83,8 @@ def test_literal_list_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_set_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[set[str], SimpleEnvParser(item_delimiter="|")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[set[str], ParseOptions(item_delimiter="|")] = Field(
             default_factory=set,
         )
 
@@ -93,8 +93,8 @@ def test_set_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_fixed_tuple_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[tuple[str, int, bool]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[tuple[str, int, bool]] = Field(
             default=("", 0, False),
         )
 
@@ -103,16 +103,16 @@ def test_fixed_tuple_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_variable_tuple_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[tuple[float, ...]] = Field(default=())
+    class Settings(ParsedEnvSettings):
+        values: Parsed[tuple[float, ...]] = Field(default=())
 
     monkeypatch.setenv("VALUES", "1.1,2.2,3.3")
     assert Settings().values == (1.1, 2.2, 3.3)
 
 
 def test_fixed_tuple_optional_element_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[tuple[str, int | None, int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[tuple[str, int | None, int]] = Field(
             default=("", None, 0),
         )
 
@@ -121,8 +121,8 @@ def test_fixed_tuple_optional_element_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, str], SimpleEnvParser(kv_delimiter=":")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[str, str], ParseOptions(kv_delimiter=":")] = Field(
             default_factory=dict,
         )
 
@@ -131,8 +131,8 @@ def test_dict_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_int_values_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, int], SimpleEnvParser(kv_delimiter="/")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[str, int], ParseOptions(kv_delimiter="/")] = Field(
             default_factory=dict,
         )
 
@@ -141,10 +141,10 @@ def test_dict_int_values_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_mixed_dict_values_success(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         values: Annotated[
             dict[str, str | int | bool],
-            SimpleEnvParser(item_delimiter=";", kv_delimiter="="),
+            ParseOptions(item_delimiter=";", kv_delimiter="="),
         ] = Field(
             default_factory=dict,
         )
@@ -154,7 +154,7 @@ def test_mixed_dict_values_success(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_default_pydantic_list_json(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         values: list[str] = Field(default_factory=list)
 
     monkeypatch.setenv("VALUES", '[" item one ", " item two "]')
@@ -162,7 +162,7 @@ def test_default_pydantic_list_json(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_default_pydantic_dict_json(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         values: dict[str, int | None] = Field(default_factory=dict)
 
     monkeypatch.setenv("VALUES", '{" a ": 1, " b ": null}')
@@ -170,8 +170,8 @@ def test_default_pydantic_dict_json(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_optional_values(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, int | None], SimpleEnvParser(kv_delimiter=":")] = (
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[str, int | None], ParseOptions(kv_delimiter=":")] = (
             Field(
                 default_factory=dict,
             )
@@ -182,8 +182,8 @@ def test_dict_optional_values(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_empty_input_to_empty_list(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(
             default_factory=list[int],
         )
 
@@ -192,8 +192,8 @@ def test_empty_input_to_empty_list(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_only_delimiters_to_empty_list(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(
             default_factory=list[int],
         )
 
@@ -202,16 +202,16 @@ def test_only_delimiters_to_empty_list(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_empty_input_to_empty_variable_tuple(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[tuple[float, ...]] = Field(default=())
+    class Settings(ParsedEnvSettings):
+        values: Parsed[tuple[float, ...]] = Field(default=())
 
     monkeypatch.setenv("VALUES", "")
     assert Settings().values == ()
 
 
 def test_conflicting_bool_enum_precedence(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[ConflictingBool | bool]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[ConflictingBool | bool]] = Field(
             default_factory=list[ConflictingBool | bool],
         )
 
@@ -224,8 +224,8 @@ def test_conflicting_bool_enum_precedence(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[StatusLiteral | bool]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[StatusLiteral | bool]] = Field(
             default_factory=list[StatusLiteral | bool],
         )
 
@@ -238,8 +238,8 @@ def test_conflicting_bool_literal_precedence(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_unsupported_top_level_type_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        value: SimpleParsed[int] = Field(default=0)
+    class Settings(ParsedEnvSettings):
+        value: Parsed[int] = Field(default=0)
 
     monkeypatch.setenv("VALUE", "42")
     with pytest.raises(TypeError):
@@ -247,8 +247,8 @@ def test_unsupported_top_level_type_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_list_malformed_item_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(
             default_factory=list[int],
         )
 
@@ -258,8 +258,8 @@ def test_list_malformed_item_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(
             default_factory=list[int],
         )
 
@@ -269,8 +269,8 @@ def test_list_empty_item_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[Permission]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[Permission]] = Field(
             default_factory=list[Permission],
         )
 
@@ -280,8 +280,8 @@ def test_enum_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_literal_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[Literal["active", "inactive"]]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[Literal["active", "inactive"]]] = Field(
             default_factory=list[Literal["active", "inactive"]],
         )
 
@@ -291,8 +291,8 @@ def test_literal_item_invalid_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_fixed_tuple_wrong_length_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[tuple[str, int, bool]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[tuple[str, int, bool]] = Field(
             default=("", 0, False),
         )
 
@@ -302,8 +302,8 @@ def test_fixed_tuple_wrong_length_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_malformed_pair_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, str], SimpleEnvParser(kv_delimiter=":")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[str, str], ParseOptions(kv_delimiter=":")] = Field(
             default_factory=dict,
         )
 
@@ -313,8 +313,8 @@ def test_dict_malformed_pair_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_missing_kv_delimiter_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[dict[str, str]] = Field(default_factory=dict)
+    class Settings(ParsedEnvSettings):
+        values: Parsed[dict[str, str]] = Field(default_factory=dict)
 
     monkeypatch.setenv("VALUES", "k1:v1")
     with pytest.raises(TypeError):
@@ -322,8 +322,8 @@ def test_dict_missing_kv_delimiter_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_dict_empty_pair_is_ignored(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[str, str], SimpleEnvParser(kv_delimiter=":")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[str, str], ParseOptions(kv_delimiter=":")] = Field(
             default_factory=dict,
         )
 
@@ -333,15 +333,15 @@ def test_dict_empty_pair_is_ignored(monkeypatch: pytest.MonkeyPatch):
 
 def test_ambiguous_delimiters_fails_config_validation():
     with pytest.raises(ValueError, match="cannot be the same"):
-        SimpleEnvConfig(item_delimiter=":", kv_delimiter=":")
+        ParseConfig(item_delimiter=":", kv_delimiter=":")
 
 
 def test_dict_key_type_conversion_fails(monkeypatch: pytest.MonkeyPatch):
     class MyKey(int, Enum):
         FOO = 1
 
-    class Settings(BaseSimpleEnvSettings):
-        values: Annotated[dict[MyKey, str], SimpleEnvParser(kv_delimiter=":")] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Annotated[dict[MyKey, str], ParseOptions(kv_delimiter=":")] = Field(
             default_factory=dict[MyKey, str],
         )
 
@@ -351,8 +351,8 @@ def test_dict_key_type_conversion_fails(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_unsupported_union_root_type_fails(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        value: SimpleParsed[str | list[int]] = Field(default="")
+    class Settings(ParsedEnvSettings):
+        value: Parsed[str | list[int]] = Field(default="")
 
     monkeypatch.setenv("VALUE", "something")
     with pytest.raises(TypeError):
@@ -364,8 +364,8 @@ def test_unsupported_complex_type_as_list_item_fails(monkeypatch: pytest.MonkeyP
         x: int
         y: int
 
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[Coordinates]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[Coordinates]] = Field(
             default_factory=list[Coordinates],
         )
 
@@ -381,10 +381,10 @@ def test_unsupported_complex_type_as_dict_key_fails(monkeypatch: pytest.MonkeyPa
     class MyComplexKey(BaseModel):
         id: int
 
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         values: Annotated[
             dict[MyComplexKey, str],
-            SimpleEnvParser(kv_delimiter=":"),
+            ParseOptions(kv_delimiter=":"),
         ] = Field(
             default_factory=dict[MyComplexKey, str],
         )
@@ -401,10 +401,10 @@ def test_unsupported_complex_type_as_dict_value_fails(monkeypatch: pytest.Monkey
     class MyComplexValue(BaseModel):
         data: str
 
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         values: Annotated[
             dict[str, MyComplexValue],
-            SimpleEnvParser(kv_delimiter=":"),
+            ParseOptions(kv_delimiter=":"),
         ] = Field(
             default_factory=dict,
         )
@@ -418,8 +418,8 @@ def test_unsupported_complex_type_as_dict_value_fails(monkeypatch: pytest.Monkey
 
 
 def test_settings_error_exposes_parser_detail_in_cause(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(default_factory=list[int])
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(default_factory=list[int])
 
     monkeypatch.setenv("VALUES", "1,2,bad")
 
@@ -431,7 +431,7 @@ def test_settings_error_exposes_parser_detail_in_cause(monkeypatch: pytest.Monke
 
 
 def test_non_simple_field_respects_validation_alias(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         value: str = Field(default="", validation_alias="CUSTOM_NAME")
 
     monkeypatch.setenv("CUSTOM_NAME", "from_alias")
@@ -441,7 +441,7 @@ def test_non_simple_field_respects_validation_alias(monkeypatch: pytest.MonkeyPa
 def test_non_simple_field_honors_case_insensitive_lookup(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         model_config = SettingsConfigDict(env_prefix="app_")
         value: int = 0
 
@@ -450,7 +450,7 @@ def test_non_simple_field_honors_case_insensitive_lookup(
 
 
 def test_non_simple_list_json_uses_default_env_parsing(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         model_config = SettingsConfigDict(env_prefix="app_")
         values: list[int] = Field(default_factory=list[int])
 
@@ -459,8 +459,8 @@ def test_non_simple_list_json_uses_default_env_parsing(monkeypatch: pytest.Monke
 
 
 def test_simple_parser_field_respects_validation_alias(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
-        values: SimpleParsed[list[int]] = Field(
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(
             default_factory=list[int],
             validation_alias="CUSTOM_VALUES",
         )
@@ -470,7 +470,7 @@ def test_simple_parser_field_respects_validation_alias(monkeypatch: pytest.Monke
 
 
 def test_non_simple_field_supports_alias_choices(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         value: int = Field(default=0, validation_alias=AliasChoices("A", "B"))
 
     monkeypatch.setenv("B", "7")
@@ -478,7 +478,7 @@ def test_non_simple_field_supports_alias_choices(monkeypatch: pytest.MonkeyPatch
 
 
 def test_non_simple_field_honors_env_nested_delimiter(monkeypatch: pytest.MonkeyPatch):
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         model_config = SettingsConfigDict(
             env_prefix="APP_",
             env_nested_delimiter="__",
@@ -496,9 +496,9 @@ def test_env_source_precedence_over_dotenv_for_simple_parser(
     env_file = tmp_path / ".env"
     env_file.write_text("VALUES=4,5,6\n", encoding="utf-8")
 
-    class Settings(BaseSimpleEnvSettings):
+    class Settings(ParsedEnvSettings):
         model_config = SettingsConfigDict(env_file=str(env_file))
-        values: SimpleParsed[list[int]] = Field(default_factory=list[int])
+        values: Parsed[list[int]] = Field(default_factory=list[int])
 
     monkeypatch.setenv("VALUES", "1,2,3")
     assert Settings().values == [1, 2, 3]

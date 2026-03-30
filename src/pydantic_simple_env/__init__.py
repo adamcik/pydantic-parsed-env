@@ -8,11 +8,11 @@ instead of complex JSON.
 from importlib.metadata import PackageNotFoundError, version
 
 from ._api import (
-    BaseSimpleEnvSettings,
-    SimpleEnvConfig,
-    SimpleEnvParser,
-    SimpleEnvSettingsSource,
-    SimpleParsed,
+    ParseConfig,
+    Parsed,
+    ParsedEnvSettings,
+    ParsedEnvSettingsSource,
+    ParseOptions,
 )
 
 try:
@@ -21,10 +21,10 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 __all__ = [
-    "BaseSimpleEnvSettings",
-    "SimpleEnvConfig",
-    "SimpleEnvParser",
-    "SimpleEnvSettingsSource",
-    "SimpleParsed",
+    "ParseConfig",
+    "ParseOptions",
+    "Parsed",
+    "ParsedEnvSettings",
+    "ParsedEnvSettingsSource",
     "__version__",
 ]

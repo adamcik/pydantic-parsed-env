@@ -4,7 +4,7 @@ from typing import Literal
 
 import pytest
 
-from pydantic_simple_env._api import SimpleEnvConfig
+from pydantic_simple_env._api import ParseConfig
 from pydantic_simple_env._parsers import (
     parse_dict_from_env,
     parse_fixed_tuple_from_env,
@@ -33,7 +33,7 @@ class CollectionCase[T]:
     args: tuple[object, ...]
     raw_value: str
     expected: list[T] | set[T]
-    config: SimpleEnvConfig = field(default_factory=SimpleEnvConfig)
+    config: ParseConfig = field(default_factory=ParseConfig)
 
 
 @pytest.mark.parametrize(
@@ -136,7 +136,7 @@ def test_parse_list_or_set_from_env(case: CollectionCase[object]) -> None:
 
 
 def test_parse_fixed_tuple_from_env() -> None:
-    config = SimpleEnvConfig()
+    config = ParseConfig()
     actual = parse_fixed_tuple_from_env(
         "values",
         (str, int, bool),
@@ -147,12 +147,12 @@ def test_parse_fixed_tuple_from_env() -> None:
 
 
 def test_parse_variable_tuple_from_env() -> None:
-    config = SimpleEnvConfig()
+    config = ParseConfig()
     actual = parse_variable_tuple_from_env("values", (float, ...), "1.2,3.4", config)
     assert actual == (1.2, 3.4)
 
 
 def test_parse_dict_from_env() -> None:
-    config = SimpleEnvConfig(kv_delimiter=":")
+    config = ParseConfig(kv_delimiter=":")
     actual = parse_dict_from_env("values", (str, int), "a:1,b:2", config)
     assert actual == {"a": 1, "b": 2}
