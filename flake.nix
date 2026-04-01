@@ -97,6 +97,23 @@
         checks = {
           treefmt = treefmtEval.config.build.check ./.;
 
+          lock =
+            pkgs.runCommand "uv-lock-check" {
+              src = ./.;
+              nativeBuildInputs = [
+                devEnv
+                python
+                pkgs.uv
+              ];
+            } ''
+              cd "$src"
+              export HOME="$TMPDIR"
+              export UV_PYTHON_DOWNLOADS=never
+              export UV_NO_MANAGED_PYTHON=1
+              uv lock --check
+              touch "$out"
+            '';
+
           typing =
             pkgs.runCommand "pyright-check" {
               src = ./.;
