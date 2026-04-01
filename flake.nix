@@ -7,9 +7,11 @@
 
     pyproject-build-systems = {
       url = "github:pyproject-nix/build-system-pkgs";
-      inputs.pyproject-nix.follows = "pyproject-nix";
-      inputs.uv2nix.follows = "uv2nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs = {
+        pyproject-nix.follows = "pyproject-nix";
+        uv2nix.follows = "uv2nix";
+        nixpkgs.follows = "nixpkgs";
+      };
     };
 
     uv2nix = {
@@ -43,11 +45,7 @@
         "aarch64-linux"
       ];
 
-      perSystem = {
-        pkgs,
-        self',
-        ...
-      }: let
+      perSystem = {pkgs, ...}: let
         workspace = uv2nix.lib.workspace.loadWorkspace {workspaceRoot = ./.;};
         overlay = workspace.mkPyprojectOverlay {
           sourcePreference = "wheel";
@@ -64,18 +62,12 @@
             tombi-format = {
               command = "${pkgs.tombi}/bin/tombi";
               includes = ["*.toml"];
-              options = [
-                "format"
-                "--offline"
-              ];
+              options = ["format" "--offline"];
             };
             tombi-lint = {
               command = "${pkgs.tombi}/bin/tombi";
               includes = ["*.toml"];
-              options = [
-                "lint"
-                "--offline"
-              ];
+              options = ["lint" "--offline"];
             };
           };
         };
