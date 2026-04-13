@@ -1,5 +1,6 @@
 # src/pydantic_parsed_env/_api.py
 
+import json
 from typing import Annotated, get_origin
 
 from pydantic import BaseModel, model_validator
@@ -37,6 +38,8 @@ class ParseConfig(BaseModel):
         ""  # Default to empty string; forces explicit setting for dicts.
     )
     """Delimiter for key:value within dict entries."""
+    json_fallback: bool = False
+    """Enable JSON fallback for JSON-like values when simple parsing fails."""
 
     @model_validator(mode="after")
     def check_delimiters(self) -> "ParseConfig":
@@ -57,6 +60,8 @@ class ParseConfig(BaseModel):
 def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
     item_delimiter: str = ",",
     kv_delimiter: str = "",
+    *,
+    json_fallback: bool = False,
 ) -> list[ParseConfig]:
     """Return `Annotated[...]` metadata describing simple env parsing rules.
 
@@ -78,7 +83,13 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
           `Field(default_factory=dict[str, str])`
 
     """
-    return [ParseConfig(item_delimiter=item_delimiter, kv_delimiter=kv_delimiter)]
+    return [
+        ParseConfig(
+            item_delimiter=item_delimiter,
+            kv_delimiter=kv_delimiter,
+            json_fallback=json_fallback,
+        )
+    ]
 
 
 type Parsed[T] = Annotated[T, ParseOptions()]
@@ -141,49 +152,70 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
                 "dictionaries.",
             )
 
-        if origin is list:
-            return parse_list_or_set_from_env(
-                field_name,
-                list,
-                parsed_annotation_args,
-                value,
-                parsing_config,
-            )
-        if origin is set:
-            return parse_list_or_set_from_env(
-                field_name,
-                set,
-                parsed_annotation_args,
-                value,
-                parsing_config,
-            )
-        if origin is tuple:
-            if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
-                return parse_variable_tuple_from_env(
+        try:
+            if origin is list:
+                return parse_list_or_set_from_env(
+                    field_name,
+                    list,
+                    parsed_annotation_args,
+                    value,
+                    parsing_config,
+                )
+            if origin is set:
+                return parse_list_or_set_from_env(
+                    field_name,
+                    set,
+                    parsed_annotation_args,
+                    value,
+                    parsing_config,
+                )
+            if origin is tuple:
+                if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
+                    return parse_variable_tuple_from_env(
+                        field_name,
+                        parsed_annotation_args,
+                        value,
+                        parsing_config,
+                    )
+                return parse_fixed_tuple_from_env(
                     field_name,
                     parsed_annotation_args,
                     value,
                     parsing_config,
                 )
-            return parse_fixed_tuple_from_env(
-                field_name,
-                parsed_annotation_args,
-                value,
-                parsing_config,
-            )
-        if origin is dict:
-            return parse_dict_from_env(
-                field_name,
-                parsed_annotation_args,
-                value,
-                parsing_config,
-            )
+            if origin is dict:
+                return parse_dict_from_env(
+                    field_name,
+                    parsed_annotation_args,
+                    value,
+                    parsing_config,
+                )
+        except ValueError:
+            if self._should_attempt_json_fallback(value, parsing_config):
+                return self._parse_json_value(value)
+            raise
 
         raise TypeError(
             f"Field '{field_name}' is configured with ParseOptions() "
             f"but its type hint ({resolved_annotation}) is not a List, Set, "
             "Tuple, or Dict.",
         )
+
+    def _should_attempt_json_fallback(
+        self,
+        value: str,
+        parsing_config: ParseConfig,
+    ) -> bool:
+        if not parsing_config.json_fallback:
+            return False
+
+        stripped = value.strip()
+        return (stripped.startswith("{") and stripped.endswith("}")) or (
+            stripped.startswith("[") and stripped.endswith("]")
+        )
+
+    def _parse_json_value(self, value: str) -> object:
+        return json.loads(value)
 
     def _get_parsing_config(self, field: FieldInfo) -> ParseConfig | None:
         for meta_item in self._iter_metadata_items(field.metadata):
