@@ -169,6 +169,83 @@ def test_default_pydantic_dict_json(monkeypatch: pytest.MonkeyPatch):
     assert Settings().values == {" a ": 1, " b ": None}
 
 
+def test_simple_parser_json_list_without_fallback_fails(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(default_factory=list[int])
+
+    monkeypatch.setenv("VALUES", "[1,2,3]")
+    with pytest.raises(SettingsError, match='error parsing value for field "values"'):
+        Settings()
+
+
+def test_simple_parser_json_list_without_fallback_has_hint_in_cause(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Parsed[list[int]] = Field(default_factory=list[int])
+
+    monkeypatch.setenv("VALUES", "[1,2,3]")
+    with pytest.raises(SettingsError) as exc_info:
+        Settings()
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert "ParseOptions(json_fallback=True)" in str(exc_info.value.__cause__)
+
+
+def test_simple_parser_json_list_with_json_fallback_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Annotated[
+            list[int],
+            ParseOptions(json_fallback=True),
+        ] = Field(default_factory=list[int])
+
+    monkeypatch.setenv("VALUES", " [1, 2, 3] ")
+    assert Settings().values == [1, 2, 3]
+
+
+def test_simple_parser_json_dict_with_json_fallback_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Annotated[
+            dict[str, int],
+            ParseOptions(kv_delimiter=":", json_fallback=True),
+        ] = Field(default_factory=dict[str, int])
+
+    monkeypatch.setenv("VALUES", '{"http": 80, "https": 443}')
+    assert Settings().values == {"http": 80, "https": 443}
+
+
+def test_simple_parser_json_like_content_can_still_parse_simply(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Annotated[
+            dict[str, str],
+            ParseOptions(item_delimiter=";", kv_delimiter=":", json_fallback=True),
+        ] = Field(default_factory=dict[str, str])
+
+    monkeypatch.setenv("VALUES", "{a:1;b:2}")
+    assert Settings().values == {"{a": "1", "b": "2}"}
+
+
+def test_simple_parser_json_fallback_enabled_does_not_override_simple_success(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class Settings(ParsedEnvSettings):
+        values: Annotated[
+            list[str],
+            ParseOptions(json_fallback=True),
+        ] = Field(default_factory=list[str])
+
+    monkeypatch.setenv("VALUES", "[1,2]")
+    assert Settings().values == ["[1", "2]"]
+
+
 def test_dict_optional_values(monkeypatch: pytest.MonkeyPatch):
     class Settings(ParsedEnvSettings):
         values: Annotated[dict[str, int | None], ParseOptions(kv_delimiter=":")] = (
