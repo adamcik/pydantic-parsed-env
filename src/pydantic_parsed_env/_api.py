@@ -38,8 +38,8 @@ class ParseConfig(BaseModel):
         ""  # Default to empty string; forces explicit setting for dicts.
     )
     """Delimiter for key:value within dict entries."""
-    json_fallback: bool = False
-    """Enable JSON fallback for JSON-like values when simple parsing fails."""
+    json_compatibility: bool = False
+    """Enable JSON-first parsing for JSON-like values before simple parsing."""
 
     @model_validator(mode="after")
     def check_delimiters(self) -> "ParseConfig":
@@ -61,7 +61,7 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
     item_delimiter: str = ",",
     kv_delimiter: str = "",
     *,
-    json_fallback: bool = False,
+    json_compatibility: bool = False,
 ) -> list[ParseConfig]:
     """Return `Annotated[...]` metadata describing simple env parsing rules.
 
@@ -87,7 +87,7 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
         ParseConfig(
             item_delimiter=item_delimiter,
             kv_delimiter=kv_delimiter,
-            json_fallback=json_fallback,
+            json_compatibility=json_compatibility,
         )
     ]
 
@@ -143,6 +143,12 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         origin = get_origin(resolved_annotation)
         parsed_annotation_args = annotation_args(resolved_annotation)
 
+        if self._should_try_json_compatibility(value, parsing_config):
+            try:
+                return self._parse_json_value(value)
+            except ValueError:
+                pass
+
         if origin is dict and not parsing_config.kv_delimiter:
             raise TypeError(
                 f"Field '{field_name}' is a Dict and is configured with "
@@ -191,12 +197,10 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
                     parsing_config,
                 )
         except ValueError as error:
-            if self._should_attempt_json_fallback(value, parsing_config):
-                return self._parse_json_value(value)
-            if self._looks_json_like(value):
+            if self._looks_json_like(value) and not parsing_config.json_compatibility:
                 raise ValueError(
                     f"{error} Value looks like JSON; "
-                    "enable ParseOptions(json_fallback=True).",
+                    "enable ParseOptions(json_compatibility=True).",
                 ) from error
             raise
 
@@ -206,12 +210,12 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
             "Tuple, or Dict.",
         )
 
-    def _should_attempt_json_fallback(
+    def _should_try_json_compatibility(
         self,
         value: str,
         parsing_config: ParseConfig,
     ) -> bool:
-        if not parsing_config.json_fallback:
+        if not parsing_config.json_compatibility:
             return False
 
         return self._looks_json_like(value)
