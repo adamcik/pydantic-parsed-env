@@ -61,6 +61,24 @@
 
         env = pythonSet.mkVirtualEnv "pydantic-parsed-env" workspace.deps.default;
         devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" workspace.deps.all;
+        mkCheck = name: extraNativeBuildInputs: script:
+          pkgs.runCommand name {
+            src = ./.;
+            nativeBuildInputs =
+              [
+                devEnv
+                pkgs.uv
+              ]
+              ++ extraNativeBuildInputs;
+          } ''
+            cd "$src"
+            export HOME="$TMPDIR"
+            export UV_NO_SYNC=1
+            export UV_PYTHON="${devEnv}/bin/python"
+            export UV_PYTHON_DOWNLOADS=never
+            export UV_NO_MANAGED_PYTHON=1
+            ${script}
+          '';
 
         treefmtEval = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
@@ -102,53 +120,30 @@
         checks = {
           treefmt = treefmtEval.config.build.check ./.;
 
-          lock =
-            pkgs.runCommand "uv-lock-check" {
-              src = ./.;
-              nativeBuildInputs = [
-                devEnv
-                python
-                pkgs.uv
-              ];
-            } ''
-              cd "$src"
-              export HOME="$TMPDIR"
-              export UV_PYTHON="${devEnv}/bin/python"
-              export UV_PYTHON_DOWNLOADS=never
-              export UV_NO_MANAGED_PYTHON=1
-              uv lock --check
-              touch "$out"
-            '';
+          lock = mkCheck "uv-lock-check" [python] ''
+            uv lock --check
+            touch "$out"
+          '';
 
-          typing =
-            pkgs.runCommand "pyright-check" {
-              src = ./.;
-              nativeBuildInputs = [
-                devEnv
-                pkgs.nodejs
-              ];
-            } ''
-              cd "$src"
-              export HOME="$TMPDIR"
-              pyright src
-              touch "$out"
-            '';
+          typing = mkCheck "pyright-check" [pkgs.nodejs] ''
+            pyright src
+            touch "$out"
+          '';
 
-          tests =
-            pkgs.runCommand "pytest-check" {
-              src = ./.;
-              nativeBuildInputs = [devEnv];
-            } ''
-              cd "$src"
-              export HOME="$TMPDIR"
-              export COVERAGE_FILE="$TMPDIR/.coverage"
-              pytest \
-                -q \
-                -o cache_dir="$TMPDIR/.pytest_cache" \
-                --cov src/pydantic_parsed_env \
-                --cov-report html:"$TMPDIR/htmlcov"
-              mv "$TMPDIR/htmlcov" "$out"
-            '';
+          tests = mkCheck "pytest-check" [] ''
+            export COVERAGE_FILE="$TMPDIR/.coverage"
+            mkdir -p "$out"
+            pytest \
+              -q \
+              --basetemp="$TMPDIR/.pytest_basetemp" \
+              -o cache_dir="$TMPDIR/.pytest_cache" \
+              --cov src/pydantic_parsed_env \
+              --cov-report term-missing:skip-covered \
+              --cov-report html:"$TMPDIR/htmlcov" \
+              --cov-report xml:"$TMPDIR/coverage.xml"
+            mv "$TMPDIR/htmlcov" "$out/htmlcov"
+            mv "$TMPDIR/coverage.xml" "$out/coverage.xml"
+          '';
         };
 
         devShells.default = pkgs.mkShell {
