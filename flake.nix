@@ -132,6 +132,7 @@
 
           tests = mkCheck "pytest-check" [] ''
             export COVERAGE_FILE="$TMPDIR/.coverage"
+            export HYPOTHESIS_STORAGE_DIRECTORY="$TMPDIR/.hypothesis"
             mkdir -p "$out"
             pytest \
               -q \
