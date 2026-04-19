@@ -51,17 +51,38 @@
           sourcePreference = "wheel";
         };
 
+        python = pkgs.python312;
+        pythonSet =
+          (pkgs.callPackage pyproject-nix.build.packages {inherit python;}).overrideScope
+          (pkgs.lib.composeManyExtensions [
+            pyproject-build-systems.overlays.default
+            overlay
+          ]);
+
+        env = pythonSet.mkVirtualEnv "pydantic-parsed-env" workspace.deps.default;
+        devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" workspace.deps.all;
+
         treefmtEval = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
           programs = {
             alejandra.enable = true;
             actionlint.enable = true;
             prettier.enable = true;
-            ruff-check.enable = true;
-            ruff-format.enable = true;
             zizmor.enable = true;
           };
           settings.formatter = {
+            ruff-check = {
+              command = "${devEnv}/bin/ruff";
+              includes = ["*.py"];
+              options = ["check" "--fix"];
+              priority = 10;
+            };
+            ruff-format = {
+              command = "${devEnv}/bin/ruff";
+              includes = ["*.py"];
+              options = ["format"];
+              priority = 20;
+            };
             tombi-format = {
               command = "${pkgs.tombi}/bin/tombi";
               includes = ["*.toml"];
@@ -74,17 +95,6 @@
             };
           };
         };
-
-        python = pkgs.python312;
-        pythonSet =
-          (pkgs.callPackage pyproject-nix.build.packages {inherit python;}).overrideScope
-          (pkgs.lib.composeManyExtensions [
-            pyproject-build-systems.overlays.default
-            overlay
-          ]);
-
-        env = pythonSet.mkVirtualEnv "pydantic-parsed-env" workspace.deps.default;
-        devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" workspace.deps.all;
       in {
         packages.default = env;
         formatter = treefmtEval.config.build.wrapper;
@@ -103,6 +113,7 @@
             } ''
               cd "$src"
               export HOME="$TMPDIR"
+              export UV_PYTHON="${devEnv}/bin/python"
               export UV_PYTHON_DOWNLOADS=never
               export UV_NO_MANAGED_PYTHON=1
               uv lock --check
@@ -130,15 +141,24 @@
             } ''
               cd "$src"
               export HOME="$TMPDIR"
-              pytest -q
-              touch "$out"
+              export COVERAGE_FILE="$TMPDIR/.coverage"
+              pytest \
+                -q \
+                -o cache_dir="$TMPDIR/.pytest_cache" \
+                --cov src/pydantic_parsed_env \
+                --cov-report html:"$TMPDIR/htmlcov"
+              mv "$TMPDIR/htmlcov" "$out"
             '';
         };
 
         devShells.default = pkgs.mkShell {
           shellHook = ''
+            unset PYTHONPATH
+            export REPO_ROOT=$(git rev-parse --show-toplevel)
+            export UV_NO_SYNC=1
+            export UV_PYTHON=${python.interpreter}
             export UV_PYTHON_DOWNLOADS=never
-            export UV_PYTHON_PREFERENCE=only-system
+            export UV_NO_MANAGED_PYTHON=1
           '';
 
           packages = [
