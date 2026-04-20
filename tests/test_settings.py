@@ -593,3 +593,55 @@ def test_env_source_precedence_over_dotenv_for_simple_parser(
 
     monkeypatch.setenv("VALUES", "1,2,3")
     assert Settings().values == [1, 2, 3]
+
+
+def test_dotenv_source_parses_simple_parser_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    env_file = tmp_path / ".env"
+    env_file.write_text("VALUES=7,8,9\n", encoding="utf-8")
+
+    class Settings(ParsedEnvSettings):
+        model_config = SettingsConfigDict(env_file=str(env_file))
+        values: Parsed[list[int]] = Field(default_factory=list[int])
+
+    monkeypatch.delenv("VALUES", raising=False)
+    assert Settings().values == [7, 8, 9]
+
+
+def test_dotenv_source_parses_json_compatibility_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    env_file = tmp_path / ".env"
+    env_file.write_text('VALUES=["x", "y"]\n', encoding="utf-8")
+
+    class Settings(ParsedEnvSettings):
+        model_config = SettingsConfigDict(env_file=str(env_file))
+        values: Annotated[
+            list[str],
+            ParseOptions(json_compatibility=True),
+        ] = Field(default_factory=list[str])
+
+    monkeypatch.delenv("VALUES", raising=False)
+    assert Settings().values == ["x", "y"]
+
+
+def test_dotenv_source_json_like_without_compatibility_has_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    env_file = tmp_path / ".env"
+    env_file.write_text("VALUES=[1,2,3]\n", encoding="utf-8")
+
+    class Settings(ParsedEnvSettings):
+        model_config = SettingsConfigDict(env_file=str(env_file))
+        values: Parsed[list[int]] = Field(default_factory=list[int])
+
+    monkeypatch.delenv("VALUES", raising=False)
+    with pytest.raises(SettingsError) as exc_info:
+        Settings()
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert "ParseOptions(json_compatibility=True)" in str(exc_info.value.__cause__)

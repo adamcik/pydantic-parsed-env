@@ -7,6 +7,7 @@ from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
+    DotEnvSettingsSource,
     EnvSettingsSource,
     PydanticBaseSettingsSource,
 )
@@ -345,6 +346,12 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         return flattened
 
 
+class ParsedDotEnvSettingsSource(DotEnvSettingsSource, ParsedEnvSettingsSource):
+    """`DotEnvSettingsSource` variant with ParseOptions support."""
+
+    prepare_field_value = ParsedEnvSettingsSource.prepare_field_value
+
+
 class ParsedEnvSettings(BaseSettings):
     """Enable simple environment parsing for Pydantic settings models.
 
@@ -357,7 +364,7 @@ class ParsedEnvSettings(BaseSettings):
         settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
-        dotenv_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[
         PydanticBaseSettingsSource,
@@ -368,6 +375,6 @@ class ParsedEnvSettings(BaseSettings):
         return (
             init_settings,
             ParsedEnvSettingsSource(settings_cls),
-            dotenv_settings,
+            ParsedDotEnvSettingsSource(settings_cls),
             file_secret_settings,
         )
