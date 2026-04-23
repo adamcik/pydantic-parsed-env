@@ -18,8 +18,8 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "pydantic==2.13.2",
-  "pydantic-settings==2.13.1",
+  "pydantic==2.13.3",
+  "pydantic-settings==2.14.0",
 ]
 dynamic = ["version"]
 
