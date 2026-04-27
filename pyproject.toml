@@ -30,11 +30,11 @@ Repository = "https://github.com/adamcik/pydantic-parsed-env"
 
 [dependency-groups]
 dev = [
-  "hypothesis==6.152.1",
+  "hypothesis==6.152.2",
   "pyright==1.1.409",
   "pytest==9.0.3",
   "pytest-cov==7.1.0",
-  "ruff==0.15.11",
+  "ruff==0.15.12",
 ]
 
 [build-system]
