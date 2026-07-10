@@ -13,6 +13,12 @@ pip install pydantic-parsed-env
 
 Requires Python 3.12+.
 
+Runtime dependency policy:
+
+- Published runtime dependencies use tested compatibility ranges, not exact pins.
+- Supported runtime dependency ranges are declared in the package metadata.
+- Exact versions for development are managed separately in the lockfile/tooling.
+
 ```python
 from typing import Annotated
 
@@ -174,6 +180,15 @@ nix flake check
 
 CI runs the same Nix commands (`nix fmt` and `nix flake check`) using
 Determinate Nix + Magic Nix Cache.
+
+## Versioning and releases
+
+- Package versions are derived from Git tags via `hatch-vcs`.
+- Release tags must use the `vX.Y.Z` form, for example `v0.3.1`.
+- The published package version strips the `v` prefix, so `v0.3.1` becomes
+  `0.3.1` on PyPI.
+- This project follows semantic versioning for its public API. While the
+  package is still `0.x`, breaking changes may still land in minor releases.
 
 ## License
 
