@@ -18,8 +18,8 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "pydantic==2.13.4",
-  "pydantic-settings==2.14.1",
+  "pydantic>=2.7,<3",
+  "pydantic-settings>=2.9,<3",
 ]
 dynamic = ["version"]
 
@@ -46,6 +46,7 @@ enableExperimentalFeatures = true
 
 [tool.hatch.version]
 source = "vcs"
+tag-pattern = "^v(?P<version>.+)$"
 
 [tool.pyright]
 typeCheckingMode = "strict"
