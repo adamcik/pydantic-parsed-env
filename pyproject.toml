@@ -30,6 +30,8 @@ Repository = "https://github.com/adamcik/pydantic-parsed-env"
 
 [dependency-groups]
 dev = [
+  "hatch-vcs==0.5.0",
+  "hatchling==1.29.0",
   "hypothesis==6.155.2",
   "pyright==1.1.410",
   "pytest==9.0.3",
@@ -38,7 +40,7 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatch-vcs==0.5.0", "hatchling"]
+requires = ["hatch-vcs==0.5.0", "hatchling==1.29.0"]
 build-backend = "hatchling.build"
 
 [tool.basedpyright]
@@ -47,6 +49,7 @@ enableExperimentalFeatures = true
 [tool.hatch.version]
 source = "vcs"
 tag-pattern = "^v(?P<version>.+)$"
+fallback-version = "0.0.0"
 
 [tool.pyright]
 typeCheckingMode = "strict"
@@ -93,3 +96,8 @@ ignore = [
   "S101",  # assert
   "TRY002",  # raise-vanilla-class
 ]
+
+[tool.uv]
+# Nix remains the hermetic source of truth in CI/dev; this only avoids uv creating
+# an isolated build env for local lock validation of this project itself.
+no-build-isolation-package = ["pydantic-parsed-env"]
