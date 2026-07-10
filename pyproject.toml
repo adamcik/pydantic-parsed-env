@@ -96,8 +96,3 @@ ignore = [
   "S101",  # assert
   "TRY002",  # raise-vanilla-class
 ]
-
-[tool.uv]
-# Nix remains the hermetic source of truth in CI/dev; this only avoids uv creating
-# an isolated build env for local lock validation of this project itself.
-no-build-isolation-package = ["pydantic-parsed-env"]
