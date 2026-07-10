@@ -1,6 +1,11 @@
 {
   description = "pydantic-parsed-env dev environment";
 
+  nixConfig = {
+    extra-substituters = ["https://pydantic-parsed-env.cachix.org"];
+    extra-trusted-public-keys = ["pydantic-parsed-env.cachix.org-1:FHs6liQzz/PH8AFC5MMsqPaEaKxt5cjcBgqIyExq0AY="];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
