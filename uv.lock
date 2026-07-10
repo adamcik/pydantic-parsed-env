@@ -306,13 +306,13 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "hatch-vcs", specifier = "==0.5.0" },
-    { name = "hatchling", specifier = "==1.29.0" },
-    { name = "hypothesis", specifier = "==6.155.2" },
-    { name = "pyright", specifier = "==1.1.410" },
-    { name = "pytest", specifier = "==9.0.3" },
-    { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.15.17" },
+    { name = "hatch-vcs" },
+    { name = "hatchling" },
+    { name = "hypothesis" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
 ]
 
 [[package]]
