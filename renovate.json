@@ -51,6 +51,11 @@
       "rangeStrategy": "bump"
     },
     {
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dependency-groups"],
+      "rangeStrategy": "bump"
+    },
+    {
       "matchManagers": ["uv"],
       "rangeStrategy": "replace",
       "minimumReleaseAge": "3 days"
