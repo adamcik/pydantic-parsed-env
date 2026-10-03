@@ -9,6 +9,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    nix-tooling.url = "github:adamcik/nix-tooling/03474cbd37cedc82f533d69a65cdd23237b5798e";
+    nix-tooling.inputs.nixpkgs.follows = "nixpkgs";
 
     pyproject-build-systems = {
       url = "github:pyproject-nix/build-system-pkgs";
@@ -30,17 +32,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs = inputs @ {
     flake-parts,
     pyproject-build-systems,
     pyproject-nix,
-    treefmt-nix,
     uv2nix,
     ...
   }:
@@ -48,6 +45,11 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
+      ];
+
+      imports = [
+        inputs.nix-tooling.flakeModules.formatting.common
+        inputs.nix-tooling.flakeModules.formatting.python
       ];
 
       perSystem = {pkgs, ...}: let
@@ -85,46 +87,10 @@
             ${script}
           '';
 
-        treefmtEval = treefmt-nix.lib.evalModule pkgs {
-          projectRootFile = "flake.nix";
-          programs = {
-            alejandra.enable = true;
-            actionlint.enable = true;
-            prettier.enable = true;
-            zizmor.enable = true;
-          };
-          settings.formatter = {
-            ruff-check = {
-              command = "${devEnv}/bin/ruff";
-              includes = ["*.py"];
-              options = ["check" "--fix"];
-              priority = 10;
-            };
-            ruff-format = {
-              command = "${devEnv}/bin/ruff";
-              includes = ["*.py"];
-              options = ["format"];
-              priority = 20;
-            };
-            tombi-format = {
-              command = "${pkgs.tombi}/bin/tombi";
-              includes = ["*.toml"];
-              options = ["format" "--offline"];
-            };
-            tombi-lint = {
-              command = "${pkgs.tombi}/bin/tombi";
-              includes = ["*.toml"];
-              options = ["lint" "--offline"];
-            };
-          };
-        };
       in {
         packages.default = env;
-        formatter = treefmtEval.config.build.wrapper;
 
         checks = {
-          treefmt = treefmtEval.config.build.check ./.;
-
           lock = mkCheck "uv-lock-check" [python] ''
             uv lock --check
             touch "$out"
@@ -163,14 +129,11 @@
           '';
 
           packages = [
-            pkgs.actionlint
-            devEnv
-            pkgs.tombi
-            treefmtEval.config.build.wrapper
-            pkgs.nodejs
-            pkgs.uv
-            pkgs.zizmor
-          ];
+             pkgs.actionlint
+             devEnv
+             pkgs.nodejs
+             pkgs.uv
+           ];
         };
       };
     };
