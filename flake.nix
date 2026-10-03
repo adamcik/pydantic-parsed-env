@@ -96,6 +96,16 @@
 
         in
         {
+          treefmt.programs.zizmor.enable = true;
+          treefmt.settings.formatter.tombi-lint = {
+            command = "${pkgs.tombi}/bin/tombi";
+            includes = [ "*.toml" ];
+            options = [
+              "lint"
+              "--offline"
+            ];
+          };
+
           packages.default = env;
 
           checks = {
@@ -141,6 +151,8 @@
               devEnv
               pkgs.nodejs
               pkgs.uv
+              pkgs.tombi
+              pkgs.zizmor
             ];
           };
         };
