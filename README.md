@@ -48,22 +48,20 @@ assert settings.ports == {"http": 80, "https": 443}
 ```
 
 In the simple case, you can use `Parsed[dict[str, int]]` and the default
-`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to
-show delimiter override.
+`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to show
+delimiter override.
 
 ## When to use this
 
-Use this package when you want readable delimiter-based env values for
-collections.
+Use this package when you want readable delimiter-based env values for collections.
 
-Use plain `pydantic-settings` JSON parsing when you need nested objects,
-nullable collection items, or other complex shapes.
+Use plain `pydantic-settings` JSON parsing when you need nested objects, nullable
+collection items, or other complex shapes.
 
 ## Why
 
-`pydantic-settings` is excellent, but structured env values commonly use JSON.
-That can be verbose and brittle in shell scripts, Docker env files, and ops
-tooling.
+`pydantic-settings` is excellent, but structured env values commonly use JSON. That can
+be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 
 `pydantic-parsed-env` keeps common collection config short and readable:
 
@@ -73,14 +71,13 @@ tooling.
 
 ## Core API
 
-- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env
-  source.
+- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env source.
 - `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
 - `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
 
-`ParseOptions(...)` metadata alone is not enough. The custom parser is
-installed via `settings_customise_sources`, so your settings class must inherit
-from `ParsedEnvSettings`.
+`ParseOptions(...)` metadata alone is not enough. The custom parser is installed via
+`settings_customise_sources`, so your settings class must inherit from
+`ParsedEnvSettings`.
 
 ## Supported parsing
 
@@ -97,8 +94,8 @@ Supported element conversion:
 - `Enum` / `StrEnum`
 - `Literal[...]`
 
-Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior,
-including JSON parsing for complex values.
+Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior, including
+JSON parsing for complex values.
 
 ## Behavior matrix
 
@@ -121,8 +118,8 @@ including JSON parsing for complex values.
 - For required fields without defaults, unset values still follow normal
   `pydantic-settings` required-field behavior.
 
-- `None` is not inferred from empty input by default. If you need nullable
-  collection values, use an explicit sentinel convention.
+- `None` is not inferred from empty input by default. If you need nullable collection
+  values, use an explicit sentinel convention.
 
 - Parsing is strict for malformed segments:
   - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
@@ -149,13 +146,13 @@ Detailed parser failure context is preserved in `SettingsError.__cause__`.
 
 ## Non-goals and limits
 
-- Complex nested model elements (for example `list[MyModel]`) are not supported
-  by simple string parsing.
+- Complex nested model elements (for example `list[MyModel]`) are not supported by
+  simple string parsing.
 - Nullable item types inside collections (for example `list[int | None]` or
-  `dict[str, bool | None]`) are intentionally out of scope for simple parsing.
-  Use standard JSON-based `pydantic-settings` parsing for those shapes.
-- Complex item-level unions (including nullable item unions) are not supported
-  for simple parsing.
+  `dict[str, bool | None]`) are intentionally out of scope for simple parsing. Use
+  standard JSON-based `pydantic-settings` parsing for those shapes.
+- Complex item-level unions (including nullable item unions) are not supported for
+  simple parsing.
 - Applying `ParseOptions(...)` to non-collection fields is a type error.
 
 ## Development
@@ -178,17 +175,17 @@ nix fmt
 nix flake check
 ```
 
-CI runs the same Nix commands (`nix fmt` and `nix flake check`) using
-Determinate Nix + Magic Nix Cache.
+CI runs the same Nix commands (`nix fmt` and `nix flake check`) using Determinate Nix +
+Magic Nix Cache.
 
 ## Versioning and releases
 
 - Package versions are derived from Git tags via `hatch-vcs`.
 - Release tags must use the `vX.Y.Z` form, for example `v0.3.1`.
-- The published package version strips the `v` prefix, so `v0.3.1` becomes
-  `0.3.1` on PyPI.
-- This project follows semantic versioning for its public API. While the
-  package is still `0.x`, breaking changes may still land in minor releases.
+- The published package version strips the `v` prefix, so `v0.3.1` becomes `0.3.1` on
+  PyPI.
+- This project follows semantic versioning for its public API. While the package is
+  still `0.x`, breaking changes may still land in minor releases.
 
 ## License
 
