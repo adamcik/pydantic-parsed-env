@@ -11,7 +11,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts.url = "github:hercules-ci/flake-parts";
-    nix-tooling.url = "github:adamcik/nix-tooling/03474cbd37cedc82f533d69a65cdd23237b5798e";
+    nix-tooling.url = "github:adamcik/nix-tooling";
     nix-tooling.inputs.nixpkgs.follows = "nixpkgs";
 
     pyproject-build-systems = {
