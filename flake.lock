@@ -58,7 +58,6 @@
       "original": {
         "owner": "adamcik",
         "repo": "nix-tooling",
-        "rev": "03474cbd37cedc82f533d69a65cdd23237b5798e",
         "type": "github"
       }
     },
