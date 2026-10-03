@@ -60,39 +60,39 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-  "A003",  # builtin-attribute-shadowing
-  "ANN401",  # any-type
-  "D203",  # incorrect-blank-line-before-class
-  "D213",  # multi-line-summary-second-line
-  "EM102",  # f-string-in-exception
-  "G004",  # logging-f-string
-  "C901",  # complex-structure
-  "PLR0911",  # too-many-return-statements
-  "PLR0912",  # too-many-branches
-  "PLR2004",  # magic-value-comparison
-  "RET504",  # unnecessary-assign
-  "TRY003",  # raise-vanilla-args
+  "A003", # builtin-attribute-shadowing
+  "ANN401", # any-type
+  "D203", # incorrect-blank-line-before-class
+  "D213", # multi-line-summary-second-line
+  "EM102", # f-string-in-exception
+  "G004", # logging-f-string
+  "C901", # complex-structure
+  "PLR0911", # too-many-return-statements
+  "PLR0912", # too-many-branches
+  "PLR2004", # magic-value-comparison
+  "RET504", # unnecessary-assign
+  "TRY003", # raise-vanilla-args
   # Conflicts with `ruff format`
-  "COM812",  # missing-trailing-comma
-  "ISC001",  # single-line-implicit-string-concatenation
+  "COM812", # missing-trailing-comma
+  "ISC001", # single-line-implicit-string-concatenation
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [
-  "ANN001",  # missing-type-function-argument
-  "ANN201",  # missing-return-type-undocumented-public-function
-  "ARG001",  # unused-function-argument
-  "ARG002",  # unused-method-argument
-  "ARG003",  # unused-class-method-argument
-  "D100",  # undocumented-public-module
-  "D101",  # undocumented-public-class
-  "D102",  # undocumented-public-method
-  "D103",  # undocumented-public-function
-  "D104",  # undocumented-public-package
-  "D105",  # undocumented-magic-method
-  "D107",  # undocumented-public-init
-  "FBT003",  # boolean-positional-value-in-call
-  "INP001",  # implicit-namespace-package
-  "S101",  # assert
-  "TRY002",  # raise-vanilla-class
+  "ANN001", # missing-type-function-argument
+  "ANN201", # missing-return-type-undocumented-public-function
+  "ARG001", # unused-function-argument
+  "ARG002", # unused-method-argument
+  "ARG003", # unused-class-method-argument
+  "D100", # undocumented-public-module
+  "D101", # undocumented-public-class
+  "D102", # undocumented-public-method
+  "D103", # undocumented-public-function
+  "D104", # undocumented-public-package
+  "D105", # undocumented-magic-method
+  "D107", # undocumented-public-init
+  "FBT003", # boolean-positional-value-in-call
+  "INP001", # implicit-namespace-package
+  "S101", # assert
+  "TRY002", # raise-vanilla-class
 ]
