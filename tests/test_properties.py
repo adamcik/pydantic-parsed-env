@@ -41,6 +41,32 @@ def test_property_parse_str_list_round_trip_with_stripping(values: list[str]) ->
     assert parsed == expected
 
 
+def _is_invalid_integer(raw: str) -> bool:
+    try:
+        int(raw, 0)
+    except ValueError:
+        return True
+    return False
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("0 ", 0),
+        (" +12 ", 12),
+        ("-12", -12),
+        ("0x10", 16),
+        ("0o10", 8),
+        ("0b10", 2),
+        ("1_000", 1000),
+    ],
+)
+def test_parse_int_list_accepts_integer_syntax(raw: str, expected: int) -> None:
+    assert parse_list_or_set_from_env(
+        "values", list, (int,), f"1,{raw},2", ParseConfig()
+    ) == [1, expected, 2]
+
+
 @given(
     raw=st.text(
         alphabet=st.characters(
@@ -50,7 +76,7 @@ def test_property_parse_str_list_round_trip_with_stripping(values: list[str]) ->
         ),
         min_size=1,
         max_size=16,
-    ).filter(lambda s: not s.lstrip("+-").isdigit()),
+    ).filter(_is_invalid_integer),
 )
 def test_property_parse_int_list_rejects_non_integer_segment(raw: str) -> None:
     with pytest.raises(ValueError, match="Could not parse item"):
