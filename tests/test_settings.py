@@ -405,7 +405,9 @@ def test_dict_malformed_pair_fails(monkeypatch: pytest.MonkeyPatch):
 
 def test_dict_missing_kv_delimiter_fails(monkeypatch: pytest.MonkeyPatch):
     class Settings(ParsedEnvSettings):
-        values: Parsed[dict[str, str]] = Field(default_factory=dict)
+        values: Annotated[dict[str, str], ParseOptions(kv_delimiter="")] = Field(
+            default_factory=dict,
+        )
 
     monkeypatch.setenv("VALUES", "k1:v1")
     with pytest.raises(TypeError):
