@@ -82,7 +82,7 @@ def test_precedence_and_unannotated_secret_json(tmp_path: Path, monkeypatch):
 
     secrets = tmp_path / "secrets"
     secrets.mkdir()
-    (secrets / "PPE_VALUES").write_text('["secret"]', encoding="utf-8")
+    (secrets / "PPE_VALUES").write_text("secret", encoding="utf-8")
     (secrets / "PPE_NATIVE").write_text("[1,2]", encoding="utf-8")
     env_file = tmp_path / ".env"
     env_file.write_text("PPE_VALUES=dotenv\n", encoding="utf-8")

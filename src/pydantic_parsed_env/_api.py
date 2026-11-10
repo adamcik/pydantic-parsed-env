@@ -11,7 +11,9 @@ from pydantic_settings import (
     DotEnvSettingsSource,
     EnvSettingsSource,
     PydanticBaseSettingsSource,
+    SecretsSettingsSource,
 )
+from pydantic_settings.sources import PydanticBaseEnvSettingsSource
 from pydantic_settings.sources.types import EnvNoneType
 
 from ._parsers import (
@@ -98,18 +100,8 @@ type Parsed[T] = Annotated[T, ParseOptions()]
 """Convenience alias for `Annotated[T, ParseOptions()]`."""
 
 
-class ParsedEnvSettingsSource(EnvSettingsSource):
-    """`EnvSettingsSource` subclass implementing simple environment parsing.
-
-    This `EnvSettingsSource` subclass provides the implementation for simple
-    variable parsing based on `ParseConfig` instances found in annotation
-    metadata.
-
-    It specifically processes fields annotated with `ParseConfig` and otherwise
-    defers to other sources or Pydantic's default behavior.
-    Most users should inherit from `ParsedEnvSettings` instead of
-    interacting with this directly.
-    """
+class _ParsedSettingsSource(PydanticBaseEnvSettingsSource):
+    """Share decoding while preserving each source's lookup and fallback behavior."""
 
     def prepare_field_value(
         self,
@@ -347,10 +339,16 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         return flattened
 
 
-class ParsedDotEnvSettingsSource(DotEnvSettingsSource, ParsedEnvSettingsSource):
+class ParsedEnvSettingsSource(_ParsedSettingsSource, EnvSettingsSource):
+    """Environment source that decodes fields annotated with `ParseOptions`."""
+
+
+class ParsedDotEnvSettingsSource(_ParsedSettingsSource, DotEnvSettingsSource):
     """`DotEnvSettingsSource` variant with ParseOptions support."""
 
-    prepare_field_value = ParsedEnvSettingsSource.prepare_field_value
+
+class ParsedSecretsSettingsSource(_ParsedSettingsSource, SecretsSettingsSource):
+    """Secret-file source that uses delimiter decoding for annotated collections."""
 
 
 class ParsedEnvSettings(BaseSettings):
@@ -379,7 +377,11 @@ class ParsedEnvSettings(BaseSettings):
             _parsed_source(
                 dotenv_settings, DotEnvSettingsSource, ParsedDotEnvSettingsSource
             ),
-            file_secret_settings,
+            _parsed_source(
+                file_secret_settings,
+                SecretsSettingsSource,
+                ParsedSecretsSettingsSource,
+            ),
         )
 
 

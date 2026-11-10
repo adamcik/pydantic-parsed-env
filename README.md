@@ -47,9 +47,9 @@ assert settings.hosts == ["api.local", "worker.local"]
 assert settings.ports == {"http": 80, "https": 443}
 ```
 
-In the simple case, you can use `Parsed[dict[str, int]]` and the default
-`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to show
-delimiter override.
+Dictionary fields must specify a key-value delimiter, such as
+`ParseOptions(kv_delimiter="=")` or `ParseOptions(kv_delimiter=":")`.
+`Parsed[dict[str, int]]` alone does not configure one.
 
 ## When to use this
 
@@ -71,7 +71,9 @@ be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 
 ## Core API
 
-- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env source.
+- `ParsedEnvSettings`: `BaseSettings` subclass that wires in parsed environment, dotenv,
+  and secret-file sources.
+- `ParsedSecretsSettingsSource`: parsed secret-file source for custom source pipelines.
 - `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
 - `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
 
@@ -91,6 +93,23 @@ defaults. Custom source subclasses are preserved rather than replaced. Overrides
 `settings_customise_sources` should compose with `super()` to keep parsed environment
 and dotenv sources.
 
+## Secret-file collections
+
+**Breaking change for 0.2.0:** fields annotated with `ParseOptions` now use delimiter
+syntax in secret files as well as environment and dotenv values. Existing JSON
+secret-file collections must be rewritten or explicitly opt into
+`ParseOptions(json_compatibility=True)`. Unannotated fields retain their normal JSON
+behavior, and scalar secrets are unchanged.
+
+If an application supplies a systemd credentials directory, set the supplied secret
+source's `secrets_dir` before delegating through
+`super().settings_customise_sources(...)`. Explicit `_secrets_dir` values should take
+precedence. This package does not discover `CREDENTIALS_DIRECTORY` automatically or
+export secret-file values into the environment.
+
+Delimiters have no quoting or escaping. Choose them to fit the values: for example, use
+`;` between complete SQL PRAGMA statements containing spaces or equals signs.
+
 ## Supported parsing
 
 `ParseOptions(...)` applies to:
@@ -98,7 +117,7 @@ and dotenv sources.
 - `list[T]`
 - `set[T]`
 - `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
-- `dict[K, V]` (uses default `kv_delimiter` set to `:`)
+- `dict[K, V]` (requires an explicit `kv_delimiter`)
 
 Supported element conversion:
 
