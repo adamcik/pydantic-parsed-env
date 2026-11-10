@@ -79,6 +79,18 @@ be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 `settings_customise_sources`, so your settings class must inherit from
 `ParsedEnvSettings`.
 
+## Settings source options
+
+Constructor options such as `_env_file`, `_env_file_encoding`, `_env_prefix`,
+`_case_sensitive`, `_env_ignore_empty`, and `_secrets_dir` retain their normal Pydantic
+meaning. Dotenv loading is opt-in through model configuration or `_env_file`; passing
+`_env_file=None` disables it.
+
+Source priority remains constructor values, environment, dotenv, secret files, then
+defaults. Custom source subclasses are preserved rather than replaced. Overrides of
+`settings_customise_sources` should compose with `super()` to keep parsed environment
+and dotenv sources.
+
 ## Supported parsing
 
 `ParseOptions(...)` applies to:
