@@ -1,7 +1,8 @@
 # src/pydantic_parsed_env/_api.py
 
+import inspect
 import json
-from typing import Annotated, get_origin
+from typing import Annotated, Any, get_origin
 
 from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
@@ -361,10 +362,10 @@ class ParsedEnvSettings(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        settings_cls: type[BaseSettings],  # noqa: ARG003 - BaseSettings hook signature.
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[
         PydanticBaseSettingsSource,
@@ -374,7 +375,27 @@ class ParsedEnvSettings(BaseSettings):
     ]:
         return (
             init_settings,
-            ParsedEnvSettingsSource(settings_cls),
-            ParsedDotEnvSettingsSource(settings_cls),
+            _parsed_source(env_settings, EnvSettingsSource, ParsedEnvSettingsSource),
+            _parsed_source(
+                dotenv_settings, DotEnvSettingsSource, ParsedDotEnvSettingsSource
+            ),
             file_secret_settings,
         )
+
+
+def _parsed_source(
+    source: PydanticBaseSettingsSource,
+    original_type: type[PydanticBaseSettingsSource],
+    parsed_type: type[PydanticBaseSettingsSource],
+) -> PydanticBaseSettingsSource:
+    if type(source) is not original_type:
+        return source
+
+    # Public constructor options differ across supported pydantic-settings versions.
+    # Rebuild through that constructor, not by cloning private instance state.
+    options: dict[str, Any] = {
+        name: getattr(source, name)
+        for name in inspect.signature(original_type).parameters
+        if name != "settings_cls" and not name.startswith("_")
+    }
+    return parsed_type(source.settings_cls, **options)
