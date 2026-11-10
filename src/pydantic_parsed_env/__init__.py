@@ -12,6 +12,7 @@ from ._api import (
     Parsed,
     ParsedEnvSettings,
     ParsedEnvSettingsSource,
+    ParsedSecretsSettingsSource,
     ParseOptions,
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "Parsed",
     "ParsedEnvSettings",
     "ParsedEnvSettingsSource",
+    "ParsedSecretsSettingsSource",
     "__version__",
 ]

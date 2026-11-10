@@ -1,7 +1,8 @@
 # src/pydantic_parsed_env/_api.py
 
 import json
-from typing import Annotated, get_origin
+from types import UnionType
+from typing import Annotated, Union, get_origin
 
 from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
@@ -10,7 +11,9 @@ from pydantic_settings import (
     DotEnvSettingsSource,
     EnvSettingsSource,
     PydanticBaseSettingsSource,
+    SecretsSettingsSource,
 )
+from pydantic_settings.sources import PydanticBaseEnvSettingsSource
 from pydantic_settings.sources.types import EnvNoneType
 
 from ._parsers import (
@@ -97,18 +100,8 @@ type Parsed[T] = Annotated[T, ParseOptions()]
 """Convenience alias for `Annotated[T, ParseOptions()]`."""
 
 
-class ParsedEnvSettingsSource(EnvSettingsSource):
-    """`EnvSettingsSource` subclass implementing simple environment parsing.
-
-    This `EnvSettingsSource` subclass provides the implementation for simple
-    variable parsing based on `ParseConfig` instances found in annotation
-    metadata.
-
-    It specifically processes fields annotated with `ParseConfig` and otherwise
-    defers to other sources or Pydantic's default behavior.
-    Most users should inherit from `ParsedEnvSettings` instead of
-    interacting with this directly.
-    """
+class _ParsedSettingsSource(PydanticBaseEnvSettingsSource):
+    """Share field decoding without changing each source's lookup or fallback rules."""
 
     def prepare_field_value(
         self,
@@ -144,7 +137,13 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         origin = get_origin(resolved_annotation)
         parsed_annotation_args = annotation_args(resolved_annotation)
 
-        if self._should_try_json_compatibility(value, parsing_config):
+        if self._looks_json_like(value):
+            if not parsing_config.json_compatibility:
+                message = (
+                    "Value looks like JSON; "
+                    "enable ParseOptions(json_compatibility=True)."
+                )
+                raise ValueError(message)
             try:
                 return self._parse_json_value(value)
             except ValueError:
@@ -159,67 +158,49 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
                 "dictionaries.",
             )
 
-        try:
-            if origin is list:
-                return parse_list_or_set_from_env(
-                    field_name,
-                    list,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            if origin is set:
-                return parse_list_or_set_from_env(
-                    field_name,
-                    set,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            if origin is tuple:
-                if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
-                    return parse_variable_tuple_from_env(
-                        field_name,
-                        parsed_annotation_args,
-                        value,
-                        parsing_config,
-                    )
-                return parse_fixed_tuple_from_env(
+        if origin is list:
+            return parse_list_or_set_from_env(
+                field_name,
+                list,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is set:
+            return parse_list_or_set_from_env(
+                field_name,
+                set,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is tuple:
+            if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
+                return parse_variable_tuple_from_env(
                     field_name,
                     parsed_annotation_args,
                     value,
                     parsing_config,
                 )
-            if origin is dict:
-                return parse_dict_from_env(
-                    field_name,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-        except ValueError as error:
-            if self._looks_json_like(value) and not parsing_config.json_compatibility:
-                raise ValueError(
-                    f"{error} Value looks like JSON; "
-                    "enable ParseOptions(json_compatibility=True).",
-                ) from error
-            raise
+            return parse_fixed_tuple_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is dict:
+            return parse_dict_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
 
         raise TypeError(
             f"Field '{field_name}' is configured with ParseOptions() "
             f"but its type hint ({resolved_annotation}) is not a List, Set, "
             "Tuple, or Dict.",
         )
-
-    def _should_try_json_compatibility(
-        self,
-        value: str,
-        parsing_config: ParseConfig,
-    ) -> bool:
-        if not parsing_config.json_compatibility:
-            return False
-
-        return self._looks_json_like(value)
 
     def _looks_json_like(self, value: str) -> bool:
         stripped = value.strip()
@@ -261,6 +242,12 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
             current = queue.pop()
             origin = get_origin(current)
 
+            if origin in (Union, UnionType):
+                args = annotation_args(current)
+                if len(args) == 2 and type(None) in args:
+                    queue.extend(arg for arg in args if arg is not type(None))
+                continue
+
             if origin is Annotated:
                 args = annotation_args(current)
                 if args:
@@ -301,6 +288,13 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         while id(current) not in seen:
             seen.add(id(current))
             origin = get_origin(current)
+
+            if origin in (Union, UnionType):
+                args = annotation_args(current)
+                if len(args) == 2 and type(None) in args:
+                    current = next(arg for arg in args if arg is not type(None))
+                    continue
+                return current
 
             if origin is Annotated:
                 args = annotation_args(current)
@@ -346,10 +340,16 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         return flattened
 
 
-class ParsedDotEnvSettingsSource(DotEnvSettingsSource, ParsedEnvSettingsSource):
+class ParsedEnvSettingsSource(_ParsedSettingsSource, EnvSettingsSource):
+    """Environment source that decodes fields annotated with `ParseOptions`."""
+
+
+class ParsedDotEnvSettingsSource(_ParsedSettingsSource, DotEnvSettingsSource):
     """`DotEnvSettingsSource` variant with ParseOptions support."""
 
-    prepare_field_value = ParsedEnvSettingsSource.prepare_field_value
+
+class ParsedSecretsSettingsSource(_ParsedSettingsSource, SecretsSettingsSource):
+    """Secret-file source that uses the same field decoding as environment values."""
 
 
 class ParsedEnvSettings(BaseSettings):
@@ -361,10 +361,10 @@ class ParsedEnvSettings(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        settings_cls: type[BaseSettings],  # noqa: ARG003 - required by BaseSettings.
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 # required by BaseSettings signature
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[
         PydanticBaseSettingsSource,
@@ -374,7 +374,30 @@ class ParsedEnvSettings(BaseSettings):
     ]:
         return (
             init_settings,
-            ParsedEnvSettingsSource(settings_cls),
-            ParsedDotEnvSettingsSource(settings_cls),
-            file_secret_settings,
+            _adapt_source(env_settings, EnvSettingsSource, ParsedEnvSettingsSource),
+            _adapt_source(
+                dotenv_settings, DotEnvSettingsSource, ParsedDotEnvSettingsSource
+            ),
+            _adapt_source(
+                file_secret_settings,
+                SecretsSettingsSource,
+                ParsedSecretsSettingsSource,
+            ),
         )
+
+
+def _adapt_source(
+    source: PydanticBaseSettingsSource,
+    original_type: type[PydanticBaseSettingsSource],
+    parsed_type: type[PydanticBaseSettingsSource],
+) -> PydanticBaseSettingsSource:
+    # Preserve custom sources, including ones already adapted by a subclass.
+    if type(source) is not original_type:
+        return source
+
+    # BaseSettings already resolved constructor overrides and loaded source data.
+    # Copy that state rather than rerunning initialization: reconstructing from
+    # model_config loses overrides and can read a different file or environment.
+    adapted = object.__new__(parsed_type)
+    vars(adapted).update(vars(source))
+    return adapted
