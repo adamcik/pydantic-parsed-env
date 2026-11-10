@@ -128,6 +128,18 @@ JSON parsing for complex values.
 - Empty segments are allowed for `str` items:
   - `list[str]`: `"a,,b" -> ["a", "", "b"]`
 
+## JSON compatibility
+
+**Breaking change for 0.2.0:** parsed environment and dotenv fields reject values
+wrapped in `[...]` or `{...}` by default, including string collections and malformed
+JSON-looking input. Previously, string collections could silently accept these as
+literal fragments. Rewrite them with delimiters or explicitly use
+`ParseOptions(json_compatibility=True)`.
+
+The existing compatibility option still tries JSON first and falls back to delimiter
+parsing. Its default remains `False`. Unannotated fields retain normal Pydantic JSON
+decoding.
+
 ## Dict parsing rules
 
 - Dict fields require a key-value delimiter, for example

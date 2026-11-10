@@ -194,14 +194,15 @@ def test_simple_parser_json_list_without_fallback_has_hint_in_cause(
     assert "ParseOptions(json_compatibility=True)" in str(exc_info.value.__cause__)
 
 
-def test_simple_parser_json_like_can_still_succeed_without_compatibility(
+def test_simple_parser_json_like_strings_require_compatibility(
     monkeypatch: pytest.MonkeyPatch,
 ):
     class Settings(ParsedEnvSettings):
         values: Parsed[list[str]] = Field(default_factory=list[str])
 
     monkeypatch.setenv("VALUES", "[1,2]")
-    assert Settings().values == ["[1", "2]"]
+    with pytest.raises(SettingsError):
+        Settings()
 
 
 def test_simple_parser_json_list_with_json_compatibility_succeeds(
