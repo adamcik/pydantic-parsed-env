@@ -100,6 +100,11 @@ and dotenv sources.
 - `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
 - `dict[K, V]` (uses default `kv_delimiter` set to `:`)
 
+Collections may also be nullable, for example
+`Annotated[set[str] | None, ParseOptions()] = None` or `Parsed[set[str]] | None`. Only a
+single collection type plus `None` is supported at the root; other root unions are not
+supported.
+
 Supported element conversion:
 
 - `str`, `int`, `float`, `bool` (`true` / `false`)
@@ -121,7 +126,8 @@ JSON parsing for complex values.
 
 ## Empty and malformed input semantics
 
-- For collection fields, unset and `""` map to empty collections:
+- Unset fields retain their declared defaults, including `None` for nullable fields.
+- An explicit `""` maps to an empty collection, even for nullable fields:
   - `list[T] -> []`
   - `set[T] -> set()`
   - `tuple[T, ...] -> ()`
@@ -130,8 +136,8 @@ JSON parsing for complex values.
 - For required fields without defaults, unset values still follow normal
   `pydantic-settings` required-field behavior.
 
-- `None` is not inferred from empty input by default. If you need nullable collection
-  values, use an explicit sentinel convention.
+- `None` is not inferred from empty input. Pass `None` directly, leave a field with a
+  `None` default unset, or configure Pydantic's `env_parse_none_str` sentinel.
 
 - Parsing is strict for malformed segments:
   - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
