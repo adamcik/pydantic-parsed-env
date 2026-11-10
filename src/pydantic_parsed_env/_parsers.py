@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from enum import Enum, StrEnum
+from enum import Enum, IntEnum, StrEnum
 from types import UnionType
 from typing import (
     Literal,
@@ -87,6 +87,11 @@ def parse_single_item_value(
         try:
             return target_type(processed_item_str)
         except ValueError as err:
+            if issubclass(target_type, IntEnum):
+                try:
+                    return target_type(int(processed_item_str, 10))
+                except ValueError:
+                    pass
             for member_name, member in target_type.__members__.items():
                 if member_name.lower() == processed_item_str.lower():
                     return member

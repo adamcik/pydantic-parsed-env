@@ -47,9 +47,9 @@ assert settings.hosts == ["api.local", "worker.local"]
 assert settings.ports == {"http": 80, "https": 443}
 ```
 
-In the simple case, you can use `Parsed[dict[str, int]]` and the default
-`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to show
-delimiter override.
+Dictionary fields must specify a key-value delimiter, such as
+`ParseOptions(kv_delimiter="=")` or `ParseOptions(kv_delimiter=":")`.
+`Parsed[dict[str, int]]` alone does not configure one.
 
 ## When to use this
 
@@ -71,13 +71,34 @@ be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 
 ## Core API
 
-- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env source.
+- `ParsedEnvSettings`: `BaseSettings` subclass that wires in parsed environment, dotenv,
+  and secret-file sources.
 - `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
 - `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
+- `ParsedEnvSettingsSource` and `ParsedSecretsSettingsSource`: source classes for
+  applications that explicitly assemble their own source pipeline.
 
 `ParseOptions(...)` metadata alone is not enough. The custom parser is installed via
 `settings_customise_sources`, so your settings class must inherit from
 `ParsedEnvSettings`.
+
+## Settings sources
+
+Parsed fields use the same syntax in environment variables, configured dotenv files, and
+secret files. Unannotated fields retain their source's normal behavior. Constructor
+overrides such as `_env_file`, `_env_file_encoding`, `_env_prefix`, `_case_sensitive`,
+and `_secrets_dir` are preserved. Dotenv loading remains opt-in through `model_config`
+or `_env_file`.
+
+Source priority is unchanged: constructor values, environment, dotenv, secret files,
+then defaults. Dictionary values retain Pydantic's normal source-merging rules. Custom
+source subclasses are preserved rather than replaced.
+
+If you override `settings_customise_sources`, compose with
+`super().settings_customise_sources(...)`. Returning the original sources bypasses
+parsed decoding. An application may set the supplied secret source's `secrets_dir`
+before delegating, for example to read a systemd credentials directory. This library
+does not inspect `CREDENTIALS_DIRECTORY` itself.
 
 ## Supported parsing
 
@@ -86,12 +107,14 @@ be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 - `list[T]`
 - `set[T]`
 - `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
-- `dict[K, V]` (uses default `kv_delimiter` set to `:`)
+- `dict[K, V]` (requires an explicit `kv_delimiter`)
+- Nullable collections, for example `Annotated[set[str] | None, ParseOptions()] = None`
 
 Supported element conversion:
 
 - `str`, `int`, `float`, `bool` (`true` / `false`)
-- `Enum` / `StrEnum`
+- `Enum` / `StrEnum` values or case-insensitive member names
+- `IntEnum` values in decimal notation, including `HTTPStatus` (`429,502`)
 - `Literal[...]`
 
 Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior, including
@@ -109,7 +132,8 @@ JSON parsing for complex values.
 
 ## Empty and malformed input semantics
 
-- For collection fields, unset and `""` map to empty collections:
+- Unset fields retain their defaults, including `None` for nullable collections.
+- An explicit `""` maps to an empty collection, even when the field is nullable:
   - `list[T] -> []`
   - `set[T] -> set()`
   - `tuple[T, ...] -> ()`
@@ -118,8 +142,9 @@ JSON parsing for complex values.
 - For required fields without defaults, unset values still follow normal
   `pydantic-settings` required-field behavior.
 
-- `None` is not inferred from empty input by default. If you need nullable collection
-  values, use an explicit sentinel convention.
+- `None` is not inferred from empty input. Pass `None` directly, leave a nullable field
+  with a `None` default unset, or configure Pydantic's `env_parse_none_str` sentinel for
+  environment and dotenv values.
 
 - Parsing is strict for malformed segments:
   - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
@@ -127,6 +152,21 @@ JSON parsing for complex values.
 
 - Empty segments are allowed for `str` items:
   - `list[str]`: `"a,,b" -> ["a", "", "b"]`
+
+## JSON compatibility
+
+Parsed fields reject values wrapped in `[...]` or `{...}` by default, including string
+collections and malformed JSON-looking values. They are never silently accepted as
+delimiter-separated strings. Unannotated fields still use normal Pydantic JSON decoding.
+
+For an intentional transition period, a field may opt into
+`ParseOptions(json_compatibility=True)`. This tries JSON first for JSON-looking values
+and retains delimiter parsing as its fallback. Leave compatibility disabled when
+migrating completely to delimiter syntax.
+
+Delimiters are literal strings: there is no quoting or escaping within a parsed value.
+Choose delimiters that cannot occur in the items, such as `;` between SQL PRAGMA
+statements containing spaces, commas, or equals signs.
 
 ## Dict parsing rules
 
@@ -142,7 +182,8 @@ JSON parsing for complex values.
 At the settings integration layer, parsing errors are raised as
 `pydantic_settings.SettingsError` (matching upstream source behavior).
 
-Detailed parser failure context is preserved in `SettingsError.__cause__`.
+Detailed parser failure context is preserved in `SettingsError.__cause__`. That context
+can contain configuration values; do not log it without sanitization.
 
 ## Non-goals and limits
 
@@ -179,6 +220,19 @@ CI runs the same Nix commands (`nix fmt` and `nix flake check`) using Determinat
 Magic Nix Cache.
 
 ## Versioning and releases
+
+### 0.2.0 migration
+
+Breaking changes from 0.1.0:
+
+- JSON-looking values in parsed string collections are rejected rather than split into
+  literal fragments. Rewrite them with delimiters or explicitly opt into JSON
+  compatibility.
+- Parsed fields in secret files now use delimiter syntax too. JSON values require
+  explicit compatibility, just as they do in environment and dotenv values.
+
+This release also adds nullable root collections and numeric `IntEnum` parsing,
+preserves constructor source options, and keeps source precedence unchanged.
 
 - Package versions are derived from Git tags via `hatch-vcs`.
 - Release tags must use the `vX.Y.Z` form, for example `v0.3.1`.
