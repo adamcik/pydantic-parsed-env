@@ -15,9 +15,7 @@ import pydantic_parsed_env as parsed
 class Settings(parsed.ParsedEnvSettings):
     model_config = SettingsConfigDict(env_prefix="PPE_")
     scopes: parsed.Parsed[set[str]] = Field(default_factory=set)
-    rates: Annotated[dict[str, float], parsed.ParseOptions(kv_delimiter="=")] = Field(
-        default_factory=dict
-    )
+    rates: parsed.Parsed[dict[str, float]] = Field(default_factory=dict)
     pragmas: Annotated[list[str], parsed.ParseOptions(item_delimiter=";")] = Field(
         default_factory=list
     )
@@ -27,8 +25,8 @@ class Settings(parsed.ParsedEnvSettings):
 
 def test_delimiter_collections_and_scalar_secrets(tmp_path):
     values = {
-        "PPE_SCOPES": "read,write,read",
-        "PPE_RATES": "/metrics=0.1,/health=0",
+        "PPE_SCOPES": "read\nwrite\nread",
+        "PPE_RATES": "/metrics=0.1\n/health=0",
         "PPE_PRAGMAS": (
             "PRAGMA journal_mode = WAL;PRAGMA table_info('name,with,commas')"
         ),
@@ -95,7 +93,7 @@ def test_explicit_directory_prefix_and_case_are_kept(tmp_path):
 
 def test_application_can_supply_systemd_directory(tmp_path, monkeypatch):
     monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(tmp_path))
-    (tmp_path / "PPE_SCOPES").write_text("read,write", encoding="utf-8")
+    (tmp_path / "PPE_SCOPES").write_text("read\nwrite", encoding="utf-8")
     assert Settings().scopes == set()
 
     class Credentials(Settings):
@@ -122,7 +120,7 @@ def test_application_can_supply_systemd_directory(tmp_path, monkeypatch):
 
 
 def test_dictionaries_keep_source_merging_and_precedence(tmp_path, monkeypatch):
-    (tmp_path / "PPE_RATES").write_text("file=0.1,shared=0.2", encoding="utf-8")
+    (tmp_path / "PPE_RATES").write_text("file=0.1\nshared=0.2", encoding="utf-8")
     env_file = tmp_path / ".env"
     env_file.write_text("PPE_RATES=dotenv=0.3,shared=0.4\n", encoding="utf-8")
     monkeypatch.setenv("PPE_RATES", "env=0.5,shared=0.6")
@@ -141,6 +139,6 @@ def test_dictionaries_keep_source_merging_and_precedence(tmp_path, monkeypatch):
 
 
 def test_public_secret_source(tmp_path):
-    (tmp_path / "PPE_SCOPES").write_text("read,write", encoding="utf-8")
+    (tmp_path / "PPE_SCOPES").write_text("read\nwrite", encoding="utf-8")
     source = parsed.ParsedSecretsSettingsSource(Settings, secrets_dir=tmp_path)
     assert source() == {"scopes": {"read", "write"}}
