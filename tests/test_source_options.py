@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from pydantic import Field
+from pydantic import Field, ValidationError
 from pydantic_settings import (
     EnvSettingsSource,
     PydanticBaseSettingsSource,
@@ -14,6 +14,15 @@ import pydantic_parsed_env as parsed
 class Settings(parsed.ParsedEnvSettings):
     model_config = SettingsConfigDict(env_prefix="PPE_")
     values: parsed.Parsed[set[str]] = Field(default_factory=lambda: {"default"})
+
+
+def test_parsed_alias_preserves_constructor_validation():
+    class Typed(parsed.ParsedEnvSettings):
+        values: parsed.Parsed[set[int]] = Field(default_factory=set)
+
+    assert Typed(values={"1", "2"}).values == {1, 2}
+    with pytest.raises(ValidationError):
+        Typed(values={"not-an-integer"})
 
 
 def test_dotenv_constructor_options(tmp_path: Path):

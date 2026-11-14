@@ -2,7 +2,7 @@
 
 import inspect
 import json
-from typing import Annotated, Any, get_origin
+from typing import Annotated, Any, TypeVar, get_origin
 
 from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
@@ -94,7 +94,9 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
     ]
 
 
-type Parsed[T] = Annotated[T, ParseOptions()]
+# Pydantic 2.7 validates Annotated aliases, but not PEP 695 type aliases.
+_T = TypeVar("_T")
+Parsed = Annotated[_T, ParseOptions()]
 """Convenience alias for `Annotated[T, ParseOptions()]`."""
 
 
