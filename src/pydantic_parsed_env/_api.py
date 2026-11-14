@@ -361,6 +361,12 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
 
 
 def _unwrap_nullable(annotation: object) -> object:
+    """Let metadata lookup and decoding inspect the same T inside T | None.
+
+    Other unions stay intact so the decoder rejects unsupported alternatives
+    rather than guessing a branch. Runtime None and empty-value handling are
+    unaffected.
+    """
     if get_origin(annotation) in (Union, UnionType):
         args = annotation_args(annotation)
         if len(args) == 2 and type(None) in args:
