@@ -20,22 +20,17 @@ Runtime dependency policy:
 - Exact versions for development are managed separately in the lockfile/tooling.
 
 ```python
-from typing import Annotated
-
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
-from pydantic_parsed_env import ParseOptions, Parsed, ParsedEnvSettings
+from pydantic_parsed_env import Parsed, ParsedEnvSettings
 
 
 class Settings(ParsedEnvSettings):
     model_config = SettingsConfigDict(env_prefix="APP_")
 
     hosts: Parsed[list[str]] = Field(default_factory=list[str])
-    ports: Annotated[
-        dict[str, int],
-        ParseOptions(kv_delimiter="="),
-    ] = Field(default_factory=dict[str, int])
+    ports: Parsed[dict[str, int]] = Field(default_factory=dict[str, int])
 
 
 # export APP_HOSTS="api.local, worker.local"
@@ -47,9 +42,8 @@ assert settings.hosts == ["api.local", "worker.local"]
 assert settings.ports == {"http": 80, "https": 443}
 ```
 
-In the simple case, you can use `Parsed[dict[str, int]]` and the default
-`kv_delimiter=":"`. The example uses `ParseOptions(kv_delimiter="=")` only to show
-delimiter override.
+Dictionary pairs use `=` by default. Use `ParseOptions(kv_delimiter=":")` to choose a
+different key-value delimiter.
 
 ## When to use this
 
@@ -67,11 +61,13 @@ be verbose and brittle in shell scripts, Docker env files, and ops tooling.
 
 - `APP_HOSTS=api.local,worker.local`
 - `APP_FEATURE_FLAGS=true,false,true`
-- `APP_PORTS=http:80,https:443`
+- `APP_PORTS=http=80,https=443`
 
 ## Core API
 
-- `ParsedEnvSettings`: `BaseSettings` subclass that wires in the custom env source.
+- `ParsedEnvSettings`: `BaseSettings` subclass that wires in parsed environment, dotenv,
+  and secret-file sources.
+- `ParsedSecretsSettingsSource`: parsed secret-file source for custom source pipelines.
 - `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
 - `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
 
@@ -88,8 +84,52 @@ meaning. Dotenv loading is opt-in through model configuration or `_env_file`; pa
 
 Source priority remains constructor values, environment, dotenv, secret files, then
 defaults. Custom source subclasses are preserved rather than replaced. Overrides of
-`settings_customise_sources` should compose with `super()` to keep parsed environment
-and dotenv sources.
+`settings_customise_sources` should compose with `super()` to keep parsed sources.
+
+## Delimiter defaults
+
+| Source                               | Item delimiter | Dictionary key-value delimiter |
+| ------------------------------------ | -------------- | ------------------------------ |
+| Environment and dotenv               | Comma          | `=`                            |
+| Individual secret or credential file | Newline        | `=`                            |
+
+A systemd EnvironmentFile supplies environment variables and can contain:
+
+```ini
+APP_HOSTS=api.local,worker.local
+APP_PORTS=http=80,https=443
+```
+
+The corresponding `APP_PORTS` credential file contains only the value:
+
+```text
+http=80
+https=443
+```
+
+These are library conventions, not formats required by systemd or sops-nix. A multiline
+YAML string in sops-nix can supply the credential contents directly.
+
+Explicit `ParseOptions` delimiters override the defaults for every source. For example,
+`ParseOptions(item_delimiter=",")` keeps credential files comma-separated. Omitting a
+delimiter, or passing `None`, selects its default.
+
+## Secret-file collections
+
+**Breaking change for 0.2.0:** fields annotated with `ParseOptions` now use delimiter
+syntax in secret files as well as environment and dotenv values. Existing JSON
+secret-file collections must be rewritten or explicitly opt into
+`ParseOptions(json_compatibility=True)`. Unannotated fields retain their normal JSON
+behavior, and scalar secrets are unchanged.
+
+If an application supplies a systemd credentials directory, set the supplied secret
+source's `secrets_dir` before delegating through
+`super().settings_customise_sources(...)`. Explicit `_secrets_dir` values should take
+precedence. This package does not discover `CREDENTIALS_DIRECTORY` automatically or
+export secret-file values into the environment.
+
+Delimiters have no quoting or escaping. Choose them to fit the values: for example, use
+`;` between complete SQL PRAGMA statements containing spaces or equals signs.
 
 ## Supported parsing
 
@@ -98,7 +138,7 @@ and dotenv sources.
 - `list[T]`
 - `set[T]`
 - `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
-- `dict[K, V]` (uses default `kv_delimiter` set to `:`)
+- `dict[K, V]` (defaults to `kv_delimiter="="`)
 
 Supported element conversion:
 
@@ -111,13 +151,13 @@ JSON parsing for complex values.
 
 ## Behavior matrix
 
-| Field type                            | Example input         | Parsed result                |
-| ------------------------------------- | --------------------- | ---------------------------- |
-| `list[int]`                           | `"1,2,3"`             | `[1, 2, 3]`                  |
-| `set[str]`                            | `"a,a,b"`             | `{"a", "b"}`                 |
-| `tuple[float, ...]`                   | `"1.2,3.4"`           | `(1.2, 3.4)`                 |
-| `tuple[str, int]`                     | `"host,80"`           | `("host", 80)`               |
-| `dict[str, int]` + `kv_delimiter=":"` | `"http:80,https:443"` | `{"http": 80, "https": 443}` |
+| Field type          | Example input         | Parsed result                |
+| ------------------- | --------------------- | ---------------------------- |
+| `list[int]`         | `"1,2,3"`             | `[1, 2, 3]`                  |
+| `set[str]`          | `"a,a,b"`             | `{"a", "b"}`                 |
+| `tuple[float, ...]` | `"1.2,3.4"`           | `(1.2, 3.4)`                 |
+| `tuple[str, int]`   | `"host,80"`           | `("host", 80)`               |
+| `dict[str, int]`    | `"http=80,https=443"` | `{"http": 80, "https": 443}` |
 
 ## Empty and malformed input semantics
 
@@ -135,19 +175,18 @@ JSON parsing for complex values.
 
 - Parsing is strict for malformed segments:
   - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
-  - `"k1:v1,broken,k2:v2"` is invalid for `dict[K, V]`.
+  - `"k1=v1,broken,k2=v2"` is invalid for `dict[K, V]`.
 
 - Empty segments are allowed for `str` items:
   - `list[str]`: `"a,,b" -> ["a", "", "b"]`
 
 ## Dict parsing rules
 
-- Dict fields require a key-value delimiter, for example
-  `ParseOptions(kv_delimiter=":")`.
-- Each pair must match `key<kv_delimiter>value`, for example `"k:v"`.
+- Dict fields use `=` by default; override it with `ParseOptions(kv_delimiter=":")`.
+- Each pair must match `key<kv_delimiter>value`, for example `"k=v"`.
 - Whitespace around keys and values is trimmed before conversion.
 - Duplicate keys use the last value encountered:
-  - `"a:1,a:2" -> {"a": 2}`
+  - `"a=1,a=2" -> {"a": 2}`
 
 ## Error behavior
 

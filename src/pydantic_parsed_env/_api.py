@@ -11,7 +11,9 @@ from pydantic_settings import (
     DotEnvSettingsSource,
     EnvSettingsSource,
     PydanticBaseSettingsSource,
+    SecretsSettingsSource,
 )
+from pydantic_settings.sources import PydanticBaseEnvSettingsSource
 from pydantic_settings.sources.types import EnvNoneType
 
 from ._parsers import (
@@ -35,22 +37,21 @@ class ParseConfig(BaseModel):
     """
 
     item_delimiter: str = ","
-    """Delimiter for items in lists/sets/tuples."""
-    kv_delimiter: str = (
-        ""  # Default to empty string; forces explicit setting for dicts.
-    )
+    """Environment delimiter; an unset field uses newlines in secret files."""
+    kv_delimiter: str = "="
     """Delimiter for key:value within dict entries."""
     json_compatibility: bool = False
     """Enable JSON-first parsing for JSON-like values before simple parsing."""
 
     @model_validator(mode="after")
     def check_delimiters(self) -> "ParseConfig":
-        """Ensure delimiters are distinct when dictionary parsing is enabled.
-
-        Ensure item_delimiter and kv_delimiter are not the same for dicts,
-        if kv_delimiter is provided.
-        """
-        if self.kv_delimiter and self.item_delimiter == self.kv_delimiter:
+        """Reject an explicitly ambiguous pair before source defaults are resolved."""
+        explicit_pair = {"item_delimiter", "kv_delimiter"} <= self.model_fields_set
+        if (
+            explicit_pair
+            and self.kv_delimiter
+            and self.item_delimiter == self.kv_delimiter
+        ):
             raise ValueError(
                 f"item_delimiter ('{self.item_delimiter}') cannot be the same as "
                 f"kv_delimiter ('{self.kv_delimiter}'). "
@@ -60,8 +61,8 @@ class ParseConfig(BaseModel):
 
 
 def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
-    item_delimiter: str = ",",
-    kv_delimiter: str = "",
+    item_delimiter: str | None = None,
+    kv_delimiter: str | None = None,
     *,
     json_compatibility: bool = False,
 ) -> list[ParseConfig]:
@@ -70,13 +71,14 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
     Annotate fields with `Annotated[T, ParseOptions(...)]` to enable simple
     environment variable parsing.
 
-    Default behaviors (hardcoded within this source's logic):
+    Default behaviors:
+    - Items are comma-separated in environment and dotenv values, and
+      newline-separated in secret files. An explicit item_delimiter applies
+      to every source, including an explicit comma.
+    - Dictionary keys and values are separated by '=' in every source.
     - Items are always stripped of leading/trailing whitespace.
     - An empty input string (e.g., "", ",,,") for lists/sets/variable tuples
       always results in an empty collection ([], {}, ()).
-
-    For dictionaries, `kv_delimiter` must be explicitly configured if it's not
-    the default empty string.
 
     Examples:
         - `field: Annotated[list[int], ParseOptions()] =`
@@ -85,13 +87,12 @@ def ParseOptions(  # noqa: N802 # public API name is intentionally PascalCase
           `Field(default_factory=dict[str, str])`
 
     """
-    return [
-        ParseConfig(
-            item_delimiter=item_delimiter,
-            kv_delimiter=kv_delimiter,
-            json_compatibility=json_compatibility,
-        )
-    ]
+    options: dict[str, str | bool] = {"json_compatibility": json_compatibility}
+    if item_delimiter is not None:
+        options["item_delimiter"] = item_delimiter
+    if kv_delimiter is not None:
+        options["kv_delimiter"] = kv_delimiter
+    return [ParseConfig.model_validate(options)]
 
 
 # Pydantic 2.7 validates Annotated aliases, but not PEP 695 type aliases.
@@ -100,18 +101,8 @@ Parsed = Annotated[_T, ParseOptions()]
 """Convenience alias for `Annotated[T, ParseOptions()]`."""
 
 
-class ParsedEnvSettingsSource(EnvSettingsSource):
-    """`EnvSettingsSource` subclass implementing simple environment parsing.
-
-    This `EnvSettingsSource` subclass provides the implementation for simple
-    variable parsing based on `ParseConfig` instances found in annotation
-    metadata.
-
-    It specifically processes fields annotated with `ParseConfig` and otherwise
-    defers to other sources or Pydantic's default behavior.
-    Most users should inherit from `ParsedEnvSettings` instead of
-    interacting with this directly.
-    """
+class _ParsedSettingsSource(PydanticBaseEnvSettingsSource):
+    """Share decoding while preserving each source's lookup and fallback behavior."""
 
     def prepare_field_value(
         self,
@@ -160,6 +151,15 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
                 "the config. Please use "
                 "ParseOptions(kv_delimiter=':') or similar for "
                 "dictionaries.",
+            )
+
+        if origin is dict:
+            # Validate the effective pair only for dictionaries. A sequence may
+            # use '=' as its item delimiter without using a key-value delimiter.
+            parsing_config = ParseConfig(
+                item_delimiter=parsing_config.item_delimiter,
+                kv_delimiter=parsing_config.kv_delimiter,
+                json_compatibility=parsing_config.json_compatibility,
             )
 
         try:
@@ -349,10 +349,25 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         return flattened
 
 
-class ParsedDotEnvSettingsSource(DotEnvSettingsSource, ParsedEnvSettingsSource):
+class ParsedEnvSettingsSource(_ParsedSettingsSource, EnvSettingsSource):
+    """Environment source that decodes fields annotated with `ParseOptions`."""
+
+
+class ParsedDotEnvSettingsSource(_ParsedSettingsSource, DotEnvSettingsSource):
     """`DotEnvSettingsSource` variant with ParseOptions support."""
 
-    prepare_field_value = ParsedEnvSettingsSource.prepare_field_value
+
+class ParsedSecretsSettingsSource(_ParsedSettingsSource, SecretsSettingsSource):
+    """Secret-file source that uses delimiter decoding for annotated collections."""
+
+    def _get_parsing_config(self, field: FieldInfo) -> ParseConfig | None:
+        config = super()._get_parsing_config(field)
+        if config is None or "item_delimiter" in config.model_fields_set:
+            return config
+
+        # Resolve the source default without mutating shared annotation metadata.
+        # The decoder validates dictionary delimiter pairs once the type is known.
+        return config.model_copy(update={"item_delimiter": "\n"})
 
 
 class ParsedEnvSettings(BaseSettings):
@@ -381,7 +396,11 @@ class ParsedEnvSettings(BaseSettings):
             _parsed_source(
                 dotenv_settings, DotEnvSettingsSource, ParsedDotEnvSettingsSource
             ),
-            file_secret_settings,
+            _parsed_source(
+                file_secret_settings,
+                SecretsSettingsSource,
+                ParsedSecretsSettingsSource,
+            ),
         )
 
 
