@@ -104,6 +104,8 @@ Supported element conversion:
 
 - `str`, `int`, `float`, `bool` (`true` / `false`)
 - `Enum` / `StrEnum`
+- Decimal `IntEnum` values (including `HTTPStatus`, for example `429,502`), or
+  case-insensitive enum member names such as `too_many_requests,bad_gateway`
 - `Literal[...]`
 
 Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior, including
