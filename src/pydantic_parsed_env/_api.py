@@ -147,7 +147,13 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         origin = get_origin(resolved_annotation)
         parsed_annotation_args = annotation_args(resolved_annotation)
 
-        if self._should_try_json_compatibility(value, parsing_config):
+        if self._looks_json_like(value):
+            if not parsing_config.json_compatibility:
+                message = (
+                    "Value looks like JSON; "
+                    "enable ParseOptions(json_compatibility=True)."
+                )
+                raise ValueError(message)
             try:
                 return self._parse_json_value(value)
             except ValueError:
@@ -162,67 +168,49 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
                 "dictionaries.",
             )
 
-        try:
-            if origin is list:
-                return parse_list_or_set_from_env(
-                    field_name,
-                    list,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            if origin is set:
-                return parse_list_or_set_from_env(
-                    field_name,
-                    set,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-            if origin is tuple:
-                if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
-                    return parse_variable_tuple_from_env(
-                        field_name,
-                        parsed_annotation_args,
-                        value,
-                        parsing_config,
-                    )
-                return parse_fixed_tuple_from_env(
+        if origin is list:
+            return parse_list_or_set_from_env(
+                field_name,
+                list,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is set:
+            return parse_list_or_set_from_env(
+                field_name,
+                set,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is tuple:
+            if parsed_annotation_args and parsed_annotation_args[-1] is Ellipsis:
+                return parse_variable_tuple_from_env(
                     field_name,
                     parsed_annotation_args,
                     value,
                     parsing_config,
                 )
-            if origin is dict:
-                return parse_dict_from_env(
-                    field_name,
-                    parsed_annotation_args,
-                    value,
-                    parsing_config,
-                )
-        except ValueError as error:
-            if self._looks_json_like(value) and not parsing_config.json_compatibility:
-                raise ValueError(
-                    f"{error} Value looks like JSON; "
-                    "enable ParseOptions(json_compatibility=True).",
-                ) from error
-            raise
+            return parse_fixed_tuple_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
+        if origin is dict:
+            return parse_dict_from_env(
+                field_name,
+                parsed_annotation_args,
+                value,
+                parsing_config,
+            )
 
         raise TypeError(
             f"Field '{field_name}' is configured with ParseOptions() "
             f"but its type hint ({resolved_annotation}) is not a List, Set, "
             "Tuple, or Dict.",
         )
-
-    def _should_try_json_compatibility(
-        self,
-        value: str,
-        parsing_config: ParseConfig,
-    ) -> bool:
-        if not parsing_config.json_compatibility:
-            return False
-
-        return self._looks_json_like(value)
 
     def _looks_json_like(self, value: str) -> bool:
         stripped = value.strip()
