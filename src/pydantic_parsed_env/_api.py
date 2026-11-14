@@ -2,7 +2,8 @@
 
 import inspect
 import json
-from typing import Annotated, Any, TypeVar, get_origin
+from types import UnionType
+from typing import Annotated, Any, TypeVar, Union, get_origin
 
 from pydantic import BaseModel, model_validator
 from pydantic.fields import FieldInfo
@@ -264,6 +265,11 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
             current = queue.pop()
             origin = get_origin(current)
 
+            unwrapped = _unwrap_nullable(current)
+            if unwrapped is not current:
+                queue.append(unwrapped)
+                continue
+
             if origin is Annotated:
                 args = annotation_args(current)
                 if args:
@@ -304,6 +310,11 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
         while id(current) not in seen:
             seen.add(id(current))
             origin = get_origin(current)
+
+            unwrapped = _unwrap_nullable(current)
+            if unwrapped is not current:
+                current = unwrapped
+                continue
 
             if origin is Annotated:
                 args = annotation_args(current)
@@ -347,6 +358,20 @@ class ParsedEnvSettingsSource(EnvSettingsSource):
             else:
                 flattened.append(item)
         return flattened
+
+
+def _unwrap_nullable(annotation: object) -> object:
+    """Let metadata lookup and decoding inspect the same T inside T | None.
+
+    Other unions stay intact so the decoder rejects unsupported alternatives
+    rather than guessing a branch. Runtime None and empty-value handling are
+    unaffected.
+    """
+    if get_origin(annotation) in (Union, UnionType):
+        args = annotation_args(annotation)
+        if len(args) == 2 and type(None) in args:
+            return next(arg for arg in args if arg is not type(None))
+    return annotation
 
 
 class ParsedDotEnvSettingsSource(DotEnvSettingsSource, ParsedEnvSettingsSource):
