@@ -58,28 +58,35 @@
       perSystem =
         { pkgs, ... }:
         let
+          inherit (pkgs) lib;
           workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
-          overlay = workspace.mkPyprojectOverlay {
-            sourcePreference = "wheel";
-          };
-
           python = pkgs.python312;
-          pythonSet = (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
-            pkgs.lib.composeManyExtensions [
-              pyproject-build-systems.overlays.default
-              overlay
-            ]
-          );
+          mkPythonSet =
+            group:
+            (pkgs.callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
+              lib.composeManyExtensions [
+                pyproject-build-systems.overlays.default
+                (workspace.mkPyprojectOverlay {
+                  sourcePreference = "wheel";
+                  dependencies = {
+                    pydantic-parsed-env = [ group ];
+                  };
+                })
+              ]
+            );
+          pythonSet = mkPythonSet "dev";
 
           env = pythonSet.mkVirtualEnv "pydantic-parsed-env" workspace.deps.default;
-          devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" workspace.deps.all;
+          devEnv = pythonSet.mkVirtualEnv "pydantic-parsed-env-dev" {
+            pydantic-parsed-env = [ "dev" ];
+          };
           mkCheck =
-            name: extraNativeBuildInputs: script:
+            venv: name: extraNativeBuildInputs: script:
             pkgs.runCommand name
               {
                 src = ./.;
                 nativeBuildInputs = [
-                  devEnv
+                  venv
                   pkgs.uv
                 ]
                 ++ extraNativeBuildInputs;
@@ -88,11 +95,56 @@
                 cd "$src"
                 export HOME="$TMPDIR"
                 export UV_NO_SYNC=1
-                export UV_PYTHON="${devEnv}/bin/python"
+                export UV_PYTHON="${venv}/bin/python"
                 export UV_PYTHON_DOWNLOADS=never
                 export UV_NO_MANAGED_PYTHON=1
                 ${script}
               '';
+          pytestScript = ''
+            export COVERAGE_FILE="$TMPDIR/.coverage"
+            export HYPOTHESIS_STORAGE_DIRECTORY="$TMPDIR/.hypothesis"
+            mkdir -p "$out"
+            pytest \
+              -q \
+              --basetemp="$TMPDIR/.pytest_basetemp" \
+              -o cache_dir="$TMPDIR/.pytest_cache" \
+              --cov pydantic_parsed_env \
+              --cov-report term-missing:skip-covered \
+              --cov-report html:"$TMPDIR/htmlcov" \
+              --cov-report xml:"$TMPDIR/coverage.xml"
+            mv "$TMPDIR/htmlcov" "$out/htmlcov"
+            mv "$TMPDIR/coverage.xml" "$out/coverage.xml"
+          '';
+          dependencyGroups = (builtins.fromTOML (builtins.readFile ./pyproject.toml)).dependency-groups;
+          pinnedVersion =
+            group: package:
+            let
+              prefix = "${package}==";
+              dependency = lib.findFirst (
+                dep: builtins.isString dep && lib.hasPrefix prefix dep
+              ) (throw "Missing ${package} pin in ${group}") dependencyGroups.${group};
+            in
+            lib.removePrefix prefix dependency;
+          compatibilityChecks = lib.genAttrs [ "compat-minimum" "compat-latest" ] (
+            group:
+            let
+              packageSet = mkPythonSet group;
+              venv = packageSet.mkVirtualEnv "pydantic-parsed-env-${group}" {
+                pydantic-parsed-env = [ group ];
+              };
+            in
+            mkCheck venv "pytest-${group}" [ ] ''
+              python - <<'PY'
+              from importlib.metadata import version
+              import pydantic_parsed_env
+
+              assert version("pydantic") == "${pinnedVersion group "pydantic"}"
+              assert version("pydantic-settings") == "${pinnedVersion group "pydantic-settings"}"
+              assert "site-packages" in pydantic_parsed_env.__file__
+              PY
+              ${pytestScript}
+            ''
+          );
 
         in
         {
@@ -109,32 +161,19 @@
           packages.default = env;
 
           checks = {
-            lock = mkCheck "uv-lock-check" [ python ] ''
+            lock = mkCheck devEnv "uv-lock-check" [ python ] ''
               uv lock --check
               touch "$out"
             '';
 
-            typing = mkCheck "pyright-check" [ pkgs.nodejs ] ''
+            typing = mkCheck devEnv "pyright-check" [ pkgs.nodejs ] ''
               pyright src
               touch "$out"
             '';
 
-            tests = mkCheck "pytest-check" [ ] ''
-              export COVERAGE_FILE="$TMPDIR/.coverage"
-              export HYPOTHESIS_STORAGE_DIRECTORY="$TMPDIR/.hypothesis"
-              mkdir -p "$out"
-              pytest \
-                -q \
-                --basetemp="$TMPDIR/.pytest_basetemp" \
-                -o cache_dir="$TMPDIR/.pytest_cache" \
-                --cov src/pydantic_parsed_env \
-                --cov-report term-missing:skip-covered \
-                --cov-report html:"$TMPDIR/htmlcov" \
-                --cov-report xml:"$TMPDIR/coverage.xml"
-              mv "$TMPDIR/htmlcov" "$out/htmlcov"
-              mv "$TMPDIR/coverage.xml" "$out/coverage.xml"
-            '';
-          };
+            tests = compatibilityChecks.compat-latest;
+          }
+          // compatibilityChecks;
 
           devShells.default = pkgs.mkShell {
             shellHook = ''

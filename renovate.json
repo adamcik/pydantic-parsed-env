@@ -64,6 +64,23 @@
       "matchManagers": ["pep621"],
       "matchDepNames": ["python"],
       "enabled": false
+    },
+    {
+      "description": "Keep the declared minimum fixed for compatibility tests",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dependency-groups"],
+      "matchPackageNames": ["pydantic", "pydantic-settings"],
+      "matchJsonata": ["managerData.depGroup = 'compat-minimum'"],
+      "enabled": false
+    },
+    {
+      "description": "Track the newest supported 2.x compatibility versions",
+      "matchManagers": ["pep621"],
+      "matchDepTypes": ["dependency-groups"],
+      "matchPackageNames": ["pydantic", "pydantic-settings"],
+      "matchJsonata": ["managerData.depGroup = 'compat-latest'"],
+      "allowedVersions": "<3",
+      "groupName": "latest Pydantic compatibility"
     }
   ]
 }
