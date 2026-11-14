@@ -190,6 +190,11 @@ nix flake check
 CI runs the same Nix commands (`nix fmt` and `nix flake check`) using Determinate Nix +
 Magic Nix Cache.
 
+`nix flake check` runs the full test suite against two locked dependency groups:
+`compat-minimum` tests the declared lower bounds; `compat-latest` tests current
+supported 2.x versions. Each check verifies the installed versions before testing the
+installed package. Renovate keeps the minimum fixed and updates the latest group.
+
 ## Versioning and releases
 
 - Package versions are derived from Git tags via `hatch-vcs`.

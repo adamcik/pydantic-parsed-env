@@ -38,6 +38,19 @@ dev = [
   "pytest-cov",
   "ruff",
 ]
+compat-minimum = [
+  { include-group = "dev" },
+  "pydantic==2.7.0",
+  "pydantic-settings==2.9.0",
+]
+compat-latest = [
+  { include-group = "dev" },
+  "pydantic==2.14.3",
+  "pydantic-settings==2.16.3",
+]
+
+[tool.uv]
+conflicts = [[{ group = "compat-minimum" }, { group = "compat-latest" }]]
 
 [build-system]
 requires = ["hatch-vcs==0.5.0", "hatchling==1.31.0"]
