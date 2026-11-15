@@ -1,23 +1,24 @@
 # pydantic-parsed-env
 
-Parse common collection settings from simple env strings instead of JSON.
-
-If you want `ALLOWED_HOSTS=api.local,worker.local` (not
-`ALLOWED_HOSTS=["api.local","worker.local"]`), this package is for you.
+Read typed collections from environment variables and credential files without JSON. Use
+comma-separated values for single-line environment settings and one entry per line in
+credential files, rather than adding application-specific collection parsers.
 
 ## Quickstart
 
+Requires Python 3.12+. Install with `pip install pydantic-parsed-env`, or
+`pip install .` from a source checkout. These examples describe the 0.2.0 API; for
+0.1.0, see its
+[versioned README](https://github.com/adamcik/pydantic-parsed-env/blob/v0.1.0/README.md).
+
+Set the environment values:
+
 ```bash
-pip install pydantic-parsed-env
+export APP_HOSTS="api.local, worker.local"
+export APP_PORTS="http=80,https=443"
 ```
 
-Requires Python 3.12+.
-
-Runtime dependency policy:
-
-- Published runtime dependencies use tested compatibility ranges, not exact pins.
-- Supported runtime dependency ranges are declared in the package metadata.
-- Exact versions for development are managed separately in the lockfile/tooling.
+Mark the collection fields you want parsed:
 
 ```python
 from pydantic import Field
@@ -33,130 +34,80 @@ class Settings(ParsedEnvSettings):
     ports: Parsed[dict[str, int]] = Field(default_factory=dict[str, int])
 
 
-# export APP_HOSTS="api.local, worker.local"
-# export APP_PORTS="http=80,https=443"
-
 settings = Settings()
 
 assert settings.hosts == ["api.local", "worker.local"]
 assert settings.ports == {"http": 80, "https": 443}
 ```
 
-Dictionary pairs use `=` by default. Use `ParseOptions(kv_delimiter=":")` to choose a
-different key-value delimiter.
+`Parsed[T]` is shorthand for `Annotated[T, ParseOptions()]`. Your model must inherit
+from `ParsedEnvSettings` to install the parser. Unannotated fields retain normal
+Pydantic behavior, including JSON decoding.
 
-## When to use this
-
-Use this package when you want readable delimiter-based env values for collections.
-
-Use plain `pydantic-settings` JSON parsing when you need nested objects, nullable
-collection items, or other complex shapes.
-
-## Why
-
-`pydantic-settings` is excellent, but structured env values commonly use JSON. That can
-be verbose and brittle in shell scripts, Docker env files, and ops tooling.
-
-`pydantic-parsed-env` keeps common collection config short and readable:
-
-- `APP_HOSTS=api.local,worker.local`
-- `APP_FEATURE_FLAGS=true,false,true`
-- `APP_PORTS=http=80,https=443`
-
-## Core API
-
-- `ParsedEnvSettings`: `BaseSettings` subclass that wires in parsed environment, dotenv,
-  and secret-file sources.
-- `ParsedSecretsSettingsSource`: parsed secret-file source for custom source pipelines.
-- `Parsed[T]`: shorthand for `Annotated[T, ParseOptions()]`.
-- `ParseOptions(...)`: annotation metadata factory for delimiter-based parsing.
-
-`ParseOptions(...)` metadata alone is not enough. The custom parser is installed via
-`settings_customise_sources`, so your settings class must inherit from
-`ParsedEnvSettings`.
-
-## Settings source options
-
-Constructor options such as `_env_file`, `_env_file_encoding`, `_env_prefix`,
-`_case_sensitive`, `_env_ignore_empty`, and `_secrets_dir` retain their normal Pydantic
-meaning. Dotenv loading is opt-in through model configuration or `_env_file`; passing
-`_env_file=None` disables it.
-
-Source priority remains constructor values, environment, dotenv, secret files, then
-defaults. Custom source subclasses are preserved rather than replaced. Overrides of
-`settings_customise_sources` should compose with `super()` to keep parsed sources.
-
-## Delimiter defaults
+## Input formats
 
 | Source                               | Item delimiter | Dictionary key-value delimiter |
 | ------------------------------------ | -------------- | ------------------------------ |
 | Environment and dotenv               | Comma          | `=`                            |
 | Individual secret or credential file | Newline        | `=`                            |
 
-A systemd EnvironmentFile supplies environment variables and can contain:
-
-```ini
-APP_HOSTS=api.local,worker.local
-APP_PORTS=http=80,https=443
-```
-
-The corresponding `APP_PORTS` credential file contains only the value:
+A dotenv or systemd EnvironmentFile supplies environment values in the same comma-based
+format as the quickstart, with one `NAME=value` assignment per line. An individual
+credential file contains only its value; for example, a file named `APP_PORTS`:
 
 ```text
 http=80
 https=443
 ```
 
-These are library conventions, not formats required by systemd or sops-nix. A multiline
-YAML string in sops-nix can supply the credential contents directly.
+These delimiters are library conventions, not formats required by systemd.
 
-Explicit `ParseOptions` delimiters override the defaults for every source. For example,
-`ParseOptions(item_delimiter=",")` keeps credential files comma-separated. Omitting a
-delimiter, or passing `None`, selects its default.
+Use `Annotated` and `ParseOptions` for field-specific delimiters:
 
-## Secret-file collections
+```python
+from typing import Annotated
 
-**Breaking change for 0.2.0:** fields annotated with `ParseOptions` now use delimiter
-syntax in secret files as well as environment and dotenv values. Existing JSON
-secret-file collections must be rewritten or explicitly opt into
-`ParseOptions(json_compatibility=True)`. Unannotated fields retain their normal JSON
-behavior, and scalar secrets are unchanged.
+from pydantic import Field
 
-If an application supplies a systemd credentials directory, set the supplied secret
-source's `secrets_dir` before delegating through
-`super().settings_customise_sources(...)`. Explicit `_secrets_dir` values should take
-precedence. This package does not discover `CREDENTIALS_DIRECTORY` automatically or
-export secret-file values into the environment.
+from pydantic_parsed_env import ParseOptions, ParsedEnvSettings
 
-Delimiters have no quoting or escaping. Choose them to fit the values: for example, use
-`;` between complete SQL PRAGMA statements containing spaces or equals signs.
 
-## Supported parsing
+class CustomSettings(ParsedEnvSettings):
+    paths: Annotated[list[str], ParseOptions(item_delimiter=";")] = Field(
+        default_factory=list[str],
+    )
+```
 
-`ParseOptions(...)` applies to:
+For example, `PATHS="/etc/a;/etc/b"` produces `["/etc/a", "/etc/b"]`. Explicit
+delimiters apply to every source: `ParseOptions(item_delimiter=",")` also keeps
+credential files comma-separated. Omitting a delimiter, or passing `None`, selects its
+source default. Use `kv_delimiter=":"` to change dictionary pairs to `key:value`.
 
-- `list[T]`
-- `set[T]`
-- `tuple[T, ...]` and fixed tuples like `tuple[str, int]`
-- `dict[K, V]` (defaults to `kv_delimiter="="`)
+There is no item-level quoting or escaping. Choose an item delimiter that cannot occur
+inside a value, such as `;` between SQL PRAGMA statements supplied in an environment
+variable.
 
-Collections may also be nullable, for example
-`Annotated[set[str] | None, ParseOptions()] = None` or `Parsed[set[str]] | None`. Only a
-single collection type plus `None` is supported at the root; other root unions are not
-supported.
+## Loading sources
 
-Supported element conversion:
+Dotenv files and secret directories are opt-in. Pass `_env_file` or `_secrets_dir` to
+your settings constructor, or set `env_file` or `secrets_dir` in `model_config`.
+`_env_file=None` disables dotenv loading. Prefix, case, encoding, empty-value, and
+nested settings options retain their normal Pydantic meaning.
 
-- `str`, `int`, `float`, `bool` (`true` / `false`)
-- `Enum` / `StrEnum`
-- Decimal `IntEnum` values (including `HTTPStatus`, for example `429,502`), or
-  case-insensitive enum member names such as `too_many_requests,bad_gateway`
-- `Literal[...]`
+Priority is constructor values, environment, dotenv, secret files, then defaults.
+Dictionaries retain Pydantic's normal source-merging behavior, with higher-priority
+sources winning on overlapping keys. Secret contents are not exported into the
+environment.
 
-Fields without `ParseOptions(...)` keep normal `pydantic-settings` behavior, including
-JSON parsing for complex values.
+The library does not discover `CREDENTIALS_DIRECTORY` automatically. An application can
+opt in by passing it as `_secrets_dir` when constructing settings. Custom source
+subclasses are preserved; when overriding `settings_customise_sources`, delegate through
+`super()` to retain parsed sources. `ParsedSecretsSettingsSource` is also available for
+applications assembling their own source pipeline.
 
-## Behavior matrix
+## Supported types
+
+These examples use environment delimiters; credential files use newlines by default:
 
 | Field type          | Example input         | Parsed result                |
 | ------------------- | --------------------- | ---------------------------- |
@@ -166,79 +117,70 @@ JSON parsing for complex values.
 | `tuple[str, int]`   | `"host,80"`           | `("host", 80)`               |
 | `dict[str, int]`    | `"http=80,https=443"` | `{"http": 80, "https": 443}` |
 
-## Empty and malformed input semantics
+Items, keys, and values can be:
 
-- Unset fields retain their declared defaults, including `None` for nullable fields.
-- An explicit `""` maps to an empty collection, even for nullable fields:
-  - `list[T] -> []`
-  - `set[T] -> set()`
-  - `tuple[T, ...] -> ()`
-  - `dict[K, V] -> {}`
+- `str`, `int`, `float`, or `bool` (`true` / `false`, case-insensitive).
+- Enums by string value or case-insensitive member name. `IntEnum` also accepts decimal
+  values, including `HTTPStatus`: `429,502` or `too_many_requests,bad_gateway`.
+- String literals such as `Literal["active", "inactive"]`.
+- Unions of these types, including nullable items. For example, `list[int | None]`
+  parses `1,,3` as `[1, None, 3]`. Union alternatives are tried in order, with `str`
+  last.
 
-- For required fields without defaults, unset values still follow normal
-  `pydantic-settings` required-field behavior.
+A field itself can be nullable: `allowed: Parsed[set[str] | None] = None`. The root must
+be one collection type, optionally combined with `None`; other root unions and scalar
+fields are unsupported. Delimiter parsing does not construct nested containers or model
+items such as `list[MyModel]`; use ordinary Pydantic JSON fields for those.
 
-- `None` is not inferred from empty input. Pass `None` directly, leave a field with a
-  `None` default unset, or configure Pydantic's `env_parse_none_str` sentinel.
+## Empty values and input rules
 
-- Parsing is strict for malformed segments:
-  - `"a,,b"` is invalid for `list[int]` and similar non-string item types.
-  - `"k1=v1,broken,k2=v2"` is invalid for `dict[K, V]`.
+- Unset fields keep their defaults. Required fields without defaults remain required.
+- An empty string produces `[]`, `set()`, `()`, or `{}` for lists, sets, variable-length
+  tuples, and dictionaries, even when the field is nullable. Fixed tuples require the
+  declared number of items. Whitespace-only or delimiter-only input is also empty for
+  variable-size collections.
+- Empty input does not mean `None`. Leave a field with a `None` default unset, pass
+  `None` directly, or configure `env_parse_none_str` for environment and dotenv values.
+- Whitespace around items, keys, and values is trimmed.
+- Empty string items are retained: `a,,b` becomes `["a", "", "b"]` for `list[str]`.
+  Empty items fail for non-nullable numeric types; nullable items become `None`.
+- Dictionary entries split at the first key-value delimiter, so values may contain
+  additional `=` characters. Empty entries are ignored; entries without a key-value
+  delimiter fail. Duplicate keys use the last value: `a=1,a=2` becomes `{"a": 2}`.
 
-- Empty segments are allowed for `str` items:
-  - `list[str]`: `"a,,b" -> ["a", "", "b"]`
+Source parsing errors raise `pydantic_settings.SettingsError`. Parser details in
+`__cause__` may contain configuration values or secrets; do not log them unsanitized.
+Pydantic still validates the parsed result against the field type and constraints.
 
-## JSON compatibility
+## JSON and upgrading to 0.2.0
 
-**Breaking change for 0.2.0:** parsed environment and dotenv fields reject values
-wrapped in `[...]` or `{...}` by default, including string collections and malformed
-JSON-looking input. Previously, string collections could silently accept these as
-literal fragments. Rewrite them with delimiters or explicitly use
-`ParseOptions(json_compatibility=True)`.
+Parsed fields reject values wrapped in `[...]` or `{...}` by default in every source,
+including credential files. This includes malformed JSON-looking input. To accept JSON,
+explicitly set `ParseOptions(json_compatibility=True)`; it tries JSON first and falls
+back to delimiter parsing. Unannotated fields keep normal Pydantic JSON decoding.
 
-The existing compatibility option still tries JSON first and falls back to delimiter
-parsing. Its default remains `False`. Unannotated fields retain normal Pydantic JSON
-decoding.
+When upgrading from 0.1.0:
 
-## Dict parsing rules
-
-- Dict fields use `=` by default; override it with `ParseOptions(kv_delimiter=":")`.
-- Each pair must match `key<kv_delimiter>value`, for example `"k=v"`.
-- Whitespace around keys and values is trimmed before conversion.
-- Duplicate keys use the last value encountered:
-  - `"a=1,a=2" -> {"a": 2}`
-
-## Error behavior
-
-At the settings integration layer, parsing errors are raised as
-`pydantic_settings.SettingsError` (matching upstream source behavior).
-
-Detailed parser failure context is preserved in `SettingsError.__cause__`.
-
-## Non-goals and limits
-
-- Complex nested model elements (for example `list[MyModel]`) are not supported by
-  simple string parsing.
-- Nullable item types inside collections (for example `list[int | None]` or
-  `dict[str, bool | None]`) are intentionally out of scope for simple parsing. Use
-  standard JSON-based `pydantic-settings` parsing for those shapes.
-- Complex item-level unions (including nullable item unions) are not supported for
-  simple parsing.
-- Applying `ParseOptions(...)` to non-collection fields is a type error.
+- Dictionary pairs now default to `=`, so `Parsed[dict[str, int]]` needs no extra
+  options.
+- Credential-file collections now use delimiter parsing, with newline-separated items by
+  default. Rewrite existing JSON collections or enable compatibility explicitly.
+- JSON-looking string collections are rejected rather than silently split into literal
+  fragments. Use an empty value instead of `[]` for an empty collection.
 
 ## Development
 
-Default (no Nix required):
+For the development environment:
 
 ```bash
 uv sync
 uv run ruff check .
 uv run ruff format .
-uv run pyright .
+uv run pyright src
 uv run pytest -q
 ```
 
-If you use Nix, a dev shell plus formatting/check wiring is already provided:
+Or use Nix:
 
 ```bash
 nix develop
@@ -246,13 +188,14 @@ nix fmt
 nix flake check
 ```
 
-CI runs the same Nix commands (`nix fmt` and `nix flake check`) using Determinate Nix +
-Magic Nix Cache.
+CI uses `nix fmt -- --ci` and `nix flake check`. The latter runs the full suite against
+two locked dependency groups: `compat-minimum` tests the declared lower bounds;
+`compat-latest` tests current supported 2.x versions. Each check verifies the installed
+versions before testing the installed package. Renovate keeps the minimum fixed and
+updates the latest group.
 
-`nix flake check` runs the full test suite against two locked dependency groups:
-`compat-minimum` tests the declared lower bounds; `compat-latest` tests current
-supported 2.x versions. Each check verifies the installed versions before testing the
-installed package. Renovate keeps the minimum fixed and updates the latest group.
+Runtime compatibility ranges live in `pyproject.toml`; exact development and check
+versions are pinned in `uv.lock` and `flake.lock`.
 
 ## Versioning and releases
 
