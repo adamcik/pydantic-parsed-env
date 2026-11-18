@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices"],
+  "extends": ["github>adamcik/renovate-config:library"],
   "nix": {
     "enabled": true
   },
@@ -12,7 +12,7 @@
   },
   "packageRules": [
     {
-      "matchManagers": ["uv", "pep621"],
+      "matchManagers": ["pep621"],
       "matchUpdateTypes": ["lockFileMaintenance"],
       "overrideDepName": "uv lock file maintenance",
       "groupName": "uv lock file maintenance",
@@ -29,8 +29,7 @@
       "matchManagers": ["github-actions", "nix"],
       "matchUpdateTypes": ["digest", "pin", "patch", "minor"],
       "automerge": true,
-      "automergeType": "pr",
-      "minimumReleaseAge": "3 days"
+      "automergeType": "pr"
     },
     {
       "matchManagers": ["github-actions"],
@@ -41,9 +40,8 @@
       "groupName": "nix flake inputs"
     },
     {
-      "matchManagers": ["uv", "pep621"],
-      "groupName": "python dependencies",
-      "minimumReleaseAge": "3 days"
+      "matchManagers": ["pep621"],
+      "groupName": "python dependencies"
     },
     {
       "matchManagers": ["pep621"],
@@ -54,11 +52,6 @@
       "matchManagers": ["pep621"],
       "matchDepTypes": ["dependency-groups"],
       "rangeStrategy": "bump"
-    },
-    {
-      "matchManagers": ["uv"],
-      "rangeStrategy": "replace",
-      "minimumReleaseAge": "3 days"
     },
     {
       "matchManagers": ["pep621"],
